@@ -8,3 +8,5 @@ toc: false
 I have research experience in academic, policy making, clinical, and industrial settings, specializing in exploring multi-feature data, particularly omics, through *in silico*, *in vitro*, and *in vivo* methodologies.
 
 My primary interests include Applied AI for Health, Stochastic Modeling of Heterogeneous Systems, Manifold Learning for Regulatory Networks, and Functional Genomics.
+
+[GitHub](https://github.com/eniktab) | [LinkedIn](https://www.linkedin.com/in/eliniktab/)
