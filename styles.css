@@ -1,0 +1,94 @@
+:root {
+  --ink: #111111;
+  --muted: #666666;
+  --rule: #d7d7d7;
+  --paper: #ffffff;
+}
+
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.72;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.navbar {
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+
+.navbar-brand,
+.nav-link,
+.navbar .bi {
+  color: var(--ink) !important;
+}
+
+.navbar-title,
+.nav-link {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+}
+
+#quarto-content main.content {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+#title-block-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+h1.title {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  line-height: 1.08;
+}
+
+h2 {
+  font-size: 1.35rem;
+  margin-top: 2.2rem;
+}
+
+p,
+li {
+  font-size: 1.04rem;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: #888888;
+  text-underline-offset: 0.14em;
+}
+
+a:hover {
+  text-decoration-color: #111111;
+}
+
+.quarto-title-meta,
+.quarto-title-meta-heading,
+.quarto-title-meta-contents,
+.description {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.description,
+.quarto-title-meta-contents,
+.quarto-title-meta-heading {
+  color: var(--muted);
+}
+
+#TOC {
+  border-left: 1px solid var(--rule);
+  padding-left: 1rem;
+}

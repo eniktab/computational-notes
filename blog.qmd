@@ -1,0 +1,8 @@
+---
+title: "Posts"
+toc: false
+---
+
+## Published
+
+### [From Heuristics to Deep Learning: Achieving 100% Assembly Parity on GPU](posts/2026/from-heuristics-to-deep-learning/index.qmd)

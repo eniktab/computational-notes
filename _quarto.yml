@@ -1,0 +1,22 @@
+project:
+  type: website
+  pre-render:
+    - python3 scripts/build_home.py
+
+website:
+  title: "Computational Notes"
+  site-url: "https://eniktab.github.io/computational-notes/"
+  navbar:
+    left:
+      - text: Home
+        href: index.qmd
+      - text: Posts
+        href: blog.qmd
+      - text: About
+        href: about.qmd
+
+format:
+  html:
+    theme: default
+    css: styles.css
+    toc: false
