@@ -3,4 +3,8 @@ title: "About"
 toc: false
 ---
 
-About this site.
+![](assets/images/eli-niktab.jpg){fig-alt="Portrait of Eli Niktab" width="260"}
+
+I have research experience in academic, policy making, clinical, and industrial settings, specializing in exploring multi-feature data, particularly omics, through *in silico*, *in vitro*, and *in vivo* methodologies.
+
+My primary interests include Applied AI for Health, Stochastic Modeling of Heterogeneous Systems, Manifold Learning for Regulatory Networks, and Functional Genomics.
