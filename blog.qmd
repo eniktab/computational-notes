@@ -1,8 +1,14 @@
 ---
 title: "Posts"
 toc: false
+listing:
+  contents: posts
+  type: default
+  sort: "date desc"
+  sort-ui: false
+  filter-ui: false
+  fields: [date, title, author, reading-time]
+  date-format: "YYYY-MM-DD"
+  page-size: 50
+  feed: true
 ---
-
-## Published
-
-### [From Heuristics to Deep Learning: Achieving 100% Assembly Parity on GPU](posts/2026/from-heuristics-to-deep-learning/index.qmd)

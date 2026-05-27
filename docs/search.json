@@ -1,5 +1,12 @@
 [
   {
+    "objectID": "blog.html",
+    "href": "blog.html",
+    "title": "Posts",
+    "section": "",
+    "text": "Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both\n\n\n\n\n\n2026-05-27\n\n\nEli Niktab\n\n27 min\n\n\n\n\n\n\nFrom Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity\n\n\n\n\n\n2026-05-25\n\n\nEli Niktab\n\n13 min\n\n\n\n\nNo matching items"
+  },
+  {
     "objectID": "posts/2026/from-heuristics-to-deep-learning/index.html",
     "href": "posts/2026/from-heuristics-to-deep-learning/index.html",
     "title": "From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity",

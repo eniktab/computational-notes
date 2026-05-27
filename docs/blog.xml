@@ -1,0 +1,957 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss  xmlns:atom="http://www.w3.org/2005/Atom" 
+      xmlns:media="http://search.yahoo.com/mrss/" 
+      xmlns:content="http://purl.org/rss/1.0/modules/content/" 
+      xmlns:dc="http://purl.org/dc/elements/1.1/" 
+      version="2.0">
+<channel>
+<title>Computational Notes</title>
+<link>https://eniktab.github.io/computational-notes/blog.html</link>
+<atom:link href="https://eniktab.github.io/computational-notes/blog.xml" rel="self" type="application/rss+xml"/>
+<description></description>
+<generator>quarto-1.9.37</generator>
+<lastBuildDate>Tue, 26 May 2026 14:00:00 GMT</lastBuildDate>
+<item>
+  <title>Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both</title>
+  <dc:creator>Eli Niktab</dc:creator>
+  <link>https://eniktab.github.io/computational-notes/posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/</link>
+  <description><![CDATA[ 
+
+
+
+
+<p><code>miniasm</code> and <code>hifiasm</code> are both string-graph assemblers, and <code>hifiasm</code>’s graph-cleaning code is directly forked from <code>miniasm</code>’s — they share the same <code>asg_t</code> data structure and the same core function names. The differences live in what <code>hifiasm</code> adds on top: a parallel hierarchy of <strong>diploid-aware and trio-aware</strong> variants that consult per-read haplotype tags, multi-round error correction wrapped around the cleaning, and a richer multi-output graph (<code>r_utg</code>, <code>p_utg</code>, <code>p_ctg</code>, <code>a_ctg</code>) instead of a single GFA.</p>
+<p>Here I walk through the graph theory underneath both tools, then describe what we learned trying to replace those heuristics with a graph neural network. Our current architecture — <code>GINEConv</code> (5 layers, 512 hidden dim) with focal loss — sits at <strong>97.44 %</strong> validation edge accuracy on the real HG002 HiFi graph produced by <code>hifiasm</code> (~321 k edges, ~250 connected components, ~93 % / 7 % class imbalance).</p>
+<hr>
+<section id="graph-theory-the-string-graph-and-what-pruning-means" class="level2">
+<h2 class="anchored" data-anchor-id="graph-theory-the-string-graph-and-what-pruning-means">1. Graph theory: the string graph and what “pruning” means</h2>
+<section id="the-bidirected-string-graph" class="level3">
+<h3 class="anchored" data-anchor-id="the-bidirected-string-graph">1.1 The bidirected string graph</h3>
+<p>A long-read assembly graph is a <strong>bidirected multigraph</strong> <img src="https://latex.codecogs.com/png.latex?G%20=%20(V,%20E)"> where:</p>
+<ul>
+<li>Each read <img src="https://latex.codecogs.com/png.latex?r"> contributes two nodes, <img src="https://latex.codecogs.com/png.latex?r%5E%7B+%7D"> and <img src="https://latex.codecogs.com/png.latex?r%5E%7B-%7D"> (forward and reverse complement). Concretely, both miniasm and hifiasm use <img src="https://latex.codecogs.com/png.latex?n_%5Ctext%7Bvtx%7D%20=%202N"> for <img src="https://latex.codecogs.com/png.latex?N"> reads, with the encoding <code>v = read_id * 2 + dir</code>.</li>
+<li>Each pairwise overlap induces a <strong>pair</strong> of directed arcs: an arc <img src="https://latex.codecogs.com/png.latex?u%20%5Crightarrow%20v"> has a <em>twin</em> arc <img src="https://latex.codecogs.com/png.latex?v%5E%7Bc%7D%20%5Crightarrow%20u%5E%7Bc%7D"> where <img src="https://latex.codecogs.com/png.latex?w%5E%7Bc%7D"> flips the strand bit (<code>v ^ 1</code>). If one arc is deleted, the cleaner enforces <img src="https://latex.codecogs.com/png.latex?v%5E%7Bc%7D%20%5Crightarrow%20u%5E%7Bc%7D"> is deleted too, as a post-cleanup pass in every <code>del</code> routine.</li>
+</ul>
+<p>Adjacency is naturally written as a sparse matrix <img src="https://latex.codecogs.com/png.latex?M%20%5Cin%20%5C%7B0,1%5C%7D%5E%7B2N%20%5Ctimes%202N%7D"> with <img src="https://latex.codecogs.com/png.latex?M_%7Buv%7D%20=%201"> iff the arc <img src="https://latex.codecogs.com/png.latex?u%20%5Crightarrow%20v"> exists.</p>
+</section>
+<section id="the-four-topological-motifs-that-cleaning-targets" class="level3">
+<h3 class="anchored" data-anchor-id="the-four-topological-motifs-that-cleaning-targets">1.2 The four topological motifs that “cleaning” targets</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Motif</th>
+<th>What it looks like</th>
+<th>Why it’s spurious</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Transitive edge</strong></td>
+<td><img src="https://latex.codecogs.com/png.latex?u%20%5Cto%20v">, <img src="https://latex.codecogs.com/png.latex?v%20%5Cto%20w">, and <img src="https://latex.codecogs.com/png.latex?u%20%5Cto%20w"> all present; lengths satisfy <img src="https://latex.codecogs.com/png.latex?%5Cell(u%7B%5Cto%7Dv)%20+%20%5Cell(v%7B%5Cto%7Dw)%20%5Capprox%20%5Cell(u%7B%5Cto%7Dw)"></td>
+<td>Encodes the same overlap chain twice; the direct arc is redundant under Myers’s string-graph definition</td>
+</tr>
+<tr class="even">
+<td><strong>Tip</strong></td>
+<td>A short path of length <img src="https://latex.codecogs.com/png.latex?%5Cle%20k"> that dead-ends (no outgoing arcs at one end)</td>
+<td>Most commonly caused by sequencing errors near read ends or by chimeric reads</td>
+</tr>
+<tr class="odd">
+<td><strong>Bubble</strong></td>
+<td>Two distinct paths <img src="https://latex.codecogs.com/png.latex?u%20%5Cto%20%5Cdots%20%5Cto%20w"> that diverge and reconverge within distance <img src="https://latex.codecogs.com/png.latex?d"></td>
+<td>Either real heterozygosity (preserve!) or local error (collapse) — disambiguating is the diploid problem</td>
+</tr>
+<tr class="even">
+<td><strong>Short / weak overlap</strong></td>
+<td>An arc whose overlap length is much smaller than the longest competing arc out of the same node</td>
+<td>Symptom of repeat-mediated false adjacency</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="transitive-reduction-formalised" class="level3">
+<h3 class="anchored" data-anchor-id="transitive-reduction-formalised">1.3 Transitive reduction, formalised</h3>
+<p><strong>Definition (Myers 2005).</strong> Given a directed graph <img src="https://latex.codecogs.com/png.latex?G"> with edge lengths <img src="https://latex.codecogs.com/png.latex?%5Cell"> and a tolerance <img src="https://latex.codecogs.com/png.latex?%5Cepsilon">, the arc <img src="https://latex.codecogs.com/png.latex?u%20%5Cto%20w"> is <strong>transitive at tolerance <img src="https://latex.codecogs.com/png.latex?%5Cepsilon"></strong> if there is a <img src="https://latex.codecogs.com/png.latex?v%20%5Cne%20u,%20w"> with <img src="https://latex.codecogs.com/png.latex?u%20%5Cto%20v"> and <img src="https://latex.codecogs.com/png.latex?v%20%5Cto%20w"> present and</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbigl%7C%5C,%20%5Cell(u%5C!%5Cto%5C!v)%20+%20%5Cell(v%5C!%5Cto%5C!w)%20%5C;-%5C;%20%5Cell(u%5C!%5Cto%5C!w)%20%5C,%5Cbigr%7C%20%5C;%5Cle%5C;%20%5Cepsilon.%0A"></p>
+<p>The <strong>transitive reduction</strong> <img src="https://latex.codecogs.com/png.latex?G_r"> is obtained by removing every transitive arc. The implementation in miniasm (and its byte-identical fork in hifiasm) computes this in expected near-linear time per node by sorting outgoing arcs by length and using a length budget</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AL%20=%20%5Cell%5Cbigl(av_%7Bn_v-1%7D%5Cbigr)%20+%20%5Ctexttt%7Bfuzz%7D%0A"></p>
+<p>, then sweeping: an arc to <img src="https://latex.codecogs.com/png.latex?w"> gets marked transitive iff some <img src="https://latex.codecogs.com/png.latex?w">-out-arc reaches a sibling within the budget. After every pass the assembler calls <code>asg_cleanup()</code> and <code>asg_symm()</code> to symmetrise the deletion across the twin arcs.</p>
+<p>In sparse-matrix form the boolean version is</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AM_r%20%5C;=%5C;%20M%20%5C;%5Csetminus%5C;%20%5CBigl(%20M%20%5Ccap%20%5Cbigcup_%7Bk=2%7D%5E%7B%5Cinfty%7D%20M%5E%7B(k)%7D%20%5CBigr),%0A%5Cqquad%20M%5E%7B(k)%7D%20=%20M%5E%7B(k-1)%7D%20%5C,%5Codot%5C,%20M,%0A"></p>
+<p>where <img src="https://latex.codecogs.com/png.latex?%5Codot"> is boolean matrix multiplication. Without a length budget this drops <em>every</em> topologically transitive arc — which, as we discovered the hard way in Phase 1 below, shatters repetitive regions in real genomes: shortcuts through repeat copies close a triangle topologically but the arc lengths do not satisfy Myers’s <img src="https://latex.codecogs.com/png.latex?%5Cepsilon">-tolerance, so deleting the longer direct arc is biologically meaningless.</p>
+</section>
+<section id="the-tropical-min-plus-semiring" class="level3">
+<h3 class="anchored" data-anchor-id="the-tropical-min-plus-semiring">1.4 The tropical (min-plus) semiring</h3>
+<p>To enforce Myers’s fuzz tolerance as algebra rather than as a control-flow predicate, replace <img src="https://latex.codecogs.com/png.latex?(%5Ctimes,%20+)"> with the <strong>min-plus tropical semiring</strong> <img src="https://latex.codecogs.com/png.latex?%5Cmathbb%7BT%7D%20=%20(%5Cmathbb%7BR%7D%20%5Ccup%20%5C%7B+%5Cinfty%5C%7D,%20%5Cmin,%20+)">:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A(M%20%5Cotimes%20M)_%7Buw%7D%20%5C;=%5C;%20%5Cmin_%7Bv%7D%5C!%5Cbigl(%5C,%20M_%7Buv%7D%20+%20M_%7Bvw%7D%20%5C,%5Cbigr),%0A"></p>
+<p>with <img src="https://latex.codecogs.com/png.latex?M_%7Buv%7D%20=%20%5Cell(u%5C!%5Cto%5C!v)"> if the arc exists and <img src="https://latex.codecogs.com/png.latex?+%5Cinfty"> otherwise. An arc <img src="https://latex.codecogs.com/png.latex?u%20%5Cto%20w"> is transitive at tolerance <img src="https://latex.codecogs.com/png.latex?%5Cepsilon"> iff</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A(M%20%5Cotimes%20M)_%7Buw%7D%20%5C;%5Cle%5C;%20%5Cell(u%5C!%5Cto%5C!w)%20+%20%5Cepsilon.%0A"></p>
+<p>This is the exact algebraic form of the inner loop in <code>asg_arc_del_trans</code>. We implemented it with <code>scatter_reduce_(..., reduce='amin')</code> over the COO representation.</p>
+</section>
+<section id="the-weisfeilerlehman-test-message-passing-and-gin" class="level3">
+<h3 class="anchored" data-anchor-id="the-weisfeilerlehman-test-message-passing-and-gin">1.5 The Weisfeiler–Lehman test, message passing, and GIN</h3>
+<p>All modern GNNs fit Gilmer et al.’s (2017) <strong>message-passing</strong> template — at each step <img src="https://latex.codecogs.com/png.latex?t"> a node updates its embedding from its previous state and an aggregation over its neighbours:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cmathbf%7Bh%7D_u%5E%7B(t+1)%7D%20%5C;=%5C;%20%5Cphi%5CBigl(%5Cmathbf%7Bh%7D_u%5E%7B(t)%7D,%5C;%5C;%20%5Cbigoplus_%7Bv%20%5Cin%20%5Cmathcal%7BN%7D(u)%7D%20%5Cpsi%5Cbigl(%5Cmathbf%7Bh%7D_v%5E%7B(t)%7D,%20%5Cmathbf%7Be%7D_%7Buv%7D%5Cbigr)%5CBigr),%0A"></p>
+<p>with <img src="https://latex.codecogs.com/png.latex?%5Coplus"> a permutation-invariant pool. Different architectures instantiate <img src="https://latex.codecogs.com/png.latex?%5Cphi">, <img src="https://latex.codecogs.com/png.latex?%5Cpsi">, <img src="https://latex.codecogs.com/png.latex?%5Coplus"> differently: <strong>GCN</strong> (Kipf &amp; Welling 2017) uses a symmetrically-normalised mean and ignores edge features; <strong>GraphSAGE</strong> (Hamilton et al.&nbsp;2017) concatenates a separate node vector with a pooled neighbour vector; <strong>GAT</strong> (Veličković et al.&nbsp;2018) and its corrected variant <strong>GATv2</strong> (Brody et al.&nbsp;2022) replace <img src="https://latex.codecogs.com/png.latex?%5Coplus"> with attention.</p>
+<p>Xu et al.&nbsp;(2019) proved that the <strong>discriminative power</strong> of any message-passing GNN is upper-bounded by the 1-dimensional <strong>Weisfeiler–Lehman (1-WL)</strong> graph-isomorphism test, and that <strong>GIN</strong> (Graph Isomorphism Network) attains that bound when <img src="https://latex.codecogs.com/png.latex?%5Coplus"> is <code>sum</code> and <img src="https://latex.codecogs.com/png.latex?%5Cphi"> is a multi-layer MLP:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cmathbf%7Bh%7D_u%5E%7B(t+1)%7D%20%5C;=%5C;%20%5Cmathrm%7BMLP%7D%5CBigl((1+%5Ceta)%5C,%5Cmathbf%7Bh%7D_u%5E%7B(t)%7D%20%5C;+%5C;%20%5Csum_%7Bv%20%5Cin%20%5Cmathcal%7BN%7D(u)%7D%20%5Cmathbf%7Bh%7D_v%5E%7B(t)%7D%5CBigr).%0A"></p>
+<p>The <strong>GINE</strong> variant (Hu et al.&nbsp;2020, “Strategies for pre-training graph neural networks”) generalises GIN to incorporate edge features into every aggregation step:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cmathbf%7Bh%7D_u%5E%7B(t+1)%7D%20%5C;=%5C;%20%5Cmathrm%7BMLP%7D%5CBigl((1+%5Ceta)%5C,%5Cmathbf%7Bh%7D_u%5E%7B(t)%7D%20%5C;+%5C;%20%5Csum_%7Bv%20%5Cin%20%5Cmathcal%7BN%7D(u)%7D%20%5Cmathrm%7BReLU%7D%5Cbigl(%5Cmathbf%7Bh%7D_v%5E%7B(t)%7D%20+%20%5Cmathbf%7Be%7D_%7Buv%7D%5Cbigr)%5CBigr).%0A"></p>
+<p>For string-graph cleaning the edge features carry the overlap geometry (length, identity, span, etc.); GINE’s <img src="https://latex.codecogs.com/png.latex?%5Cmathrm%7BReLU%7D(%5Cmathbf%7Bh%7D_v%20+%20%5Cmathbf%7Be%7D_%7Buv%7D)"> injection at <em>every</em> layer — rather than only at the final readout, as in vanilla SAGE — is what lets the network distinguish transitive arcs from tips from bubbles in a single forward pass. GAT-family attention uses edge features only as inputs to attention coefficients, which in our setting (Wave 2b in §4.2 below) was strictly less stable than direct injection into the aggregated signal. Strictly more expressive frameworks exist — Corso et al.’s <strong>PNA</strong> (Principal Neighbourhood Aggregation, 2020) replaces the sum with a learned combination of multiple aggregators, and graph transformers (Dwivedi &amp; Bresson 2021) extend the WL bound at higher cost — but we did not need them.</p>
+<hr>
+</section>
+</section>
+<section id="miniasms-cleaning-pipeline" class="level2">
+<h2 class="anchored" data-anchor-id="miniasms-cleaning-pipeline">2. Miniasm’s cleaning pipeline</h2>
+<p><strong>Step 0 — Containment prefilter (optional, <code>-R</code> flag).</strong> <code>ma_hit_no_cont(...)</code>. Contained reads are dropped on a coordinate-overlap criterion (<code>max_hang</code>, <code>int_frac</code>) before any graph is built.</p>
+<p><strong>Steps 1–3 — Overlap loading and two-pass read selection.</strong> <code>ma_hit_read</code>, then a 1-pass crude selection (<code>ma_hit_sub</code> → <code>ma_hit_cut</code> → <code>ma_hit_flt</code>), then a 2-pass fine selection (<code>ma_hit_sub</code> → <code>ma_hit_cut</code> → <code>ma_hit_contained</code>). <code>ma_hit_contained()</code> removes contained reads automatically (not gated by <code>-R</code>).</p>
+<p><strong>Step 4 — Graph cleaning.</strong> The string graph <code>sg</code> is built (<code>ma_sg_gen</code>), then cleaned in five ordered sub-stages:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Sub-stage</th>
+<th>Routine(s)</th>
+<th>Parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>4.1</strong> Transitive reduction</td>
+<td><code>asg_arc_del_trans(sg, opt.gap_fuzz)</code></td>
+<td><code>-g</code> (fuzz, in bp)</td>
+</tr>
+<tr class="even">
+<td><strong>4.2</strong> Initial tip + bubble</td>
+<td><code>asg_cut_tip(sg, max_ext)</code> then <code>asg_pop_bubble(sg, bub_dist)</code></td>
+<td><code>-e</code>, <code>-d</code></td>
+</tr>
+<tr class="odd">
+<td><strong>4.3</strong> Iterative short-overlap removal</td>
+<td><code>for i in 0..n_rounds: asg_arc_del_short(sg, r_i)</code> and tip+bubble after each</td>
+<td><code>-n</code> rounds, <code>-r min,max</code> ramped drop ratio</td>
+</tr>
+<tr class="even">
+<td><strong>4.4</strong> Internal-sequence and bi-loop cleanup</td>
+<td><code>asg_cut_internal</code>, <code>asg_cut_biloop</code>, then tip + bubble again</td>
+<td><code>-e</code></td>
+</tr>
+<tr class="odd">
+<td><strong>4.5</strong> Aggressive final short-overlap pass</td>
+<td><code>asg_arc_del_short(sg, final_ovlp_drop_ratio)</code> + tip + bubble</td>
+<td><code>-F</code></td>
+</tr>
+</tbody>
+</table>
+<p>So miniasm’s short-overlap removal <strong>is</strong> iterative — Stage 4.3 is a <code>for</code> loop over <code>n_rounds+1</code> rounds, with the drop ratio ramped from <code>min</code> to <code>max</code> and tip + bubble passes after each round. The widely-repeated claim that “miniasm is single-pass” is therefore wrong in spirit. What miniasm <em>does not</em> do is wrap the entire cleaning cascade around an outer base-level error-correction loop — that outer loop is what <code>hifiasm</code> adds.</p>
+<p><strong>Algorithmically, the five graph-operation primitives:</strong></p>
+<ul>
+<li><code>asg_arc_del_trans</code> — Myers TR with explicit fuzz, ops on the 2N node space, see §1.3 above.</li>
+<li><code>asg_arc_del_short</code> — for each node, drop arcs whose overlap length is below <code>drop_ratio × max_arc_length</code>. Default <code>r</code> ramps from 0.5 to 0.8 across rounds; final <code>-F</code> defaults to 0.8.</li>
+<li><code>asg_cut_tip</code> — uses a forward walk of at most <code>max_ext</code> hops from a candidate tip. If the walk doesn’t reach a mergeable interior, the whole sub-path is deleted.</li>
+<li><code>asg_cut_internal</code> and <code>asg_cut_biloop</code> — handle small internal stubs and adjacent two-edge loops that the standard tip routine misses.</li>
+<li><code>asg_pop_bubble</code> — Tarjan-style BFS from each branch point; if it converges to a single sink within <code>max_dist</code>, the non-best alternative is deleted.</li>
+</ul>
+<p>Crucially, <strong>none of these consult haplotype information</strong>. Bubbles are popped to the single best path regardless of whether the alternative encodes a real heterozygous allele.</p>
+<hr>
+</section>
+<section id="hifiasms-additions-to-the-same-skeleton" class="level2">
+<h2 class="anchored" data-anchor-id="hifiasms-additions-to-the-same-skeleton">3. Hifiasm’s additions to the same skeleton</h2>
+<p><code>hifiasm</code> keeps the miniasm primitives (sometimes byte-identically, the only differences are added timing/log statements) and surrounds them with three new categories of code:</p>
+<section id="diploid-aware-del-short-variants" class="level3">
+<h3 class="anchored" data-anchor-id="diploid-aware-del-short-variants">3.1 Diploid-aware del-short variants</h3>
+<p>These consult per-read haplotype evidence rather than geometry alone:</p>
+<ul>
+<li><code>asg_arc_del_short_diploid_unclean</code> — the same drop-ratio loop as miniasm, but with one rescue: when the second-longest arc out of a node is about to be deleted, it is <em>not</em> deleted. This preserves the alternate haplotype branch out of every divergent node.</li>
+<li><code>asg_arc_del_short_diploid_unclean_exact</code> — stricter version.</li>
+<li><code>asg_arc_del_short_diploid_by_length</code> — length-conditioned.</li>
+<li><code>asg_arc_del_short_diploid_by_length_trio</code> — combines length conditioning with trio data.</li>
+<li><code>asg_arc_del_short_diploid_by_exact</code> — exact-match conditioned.</li>
+<li><code>asg_arc_del_short_diploid_by_exact_trio</code> — combines exact match with trio data.</li>
+<li><code>asg_arc_del_short_diploi_by_suspect_edge</code> (sic) — flags edges as “suspect” by phasing evidence.</li>
+</ul>
+</section>
+<section id="multi-stage-false-link-removal" class="level3">
+<h3 class="anchored" data-anchor-id="multi-stage-false-link-removal">3.2 Multi-stage false-link removal</h3>
+<p><code>asg_arc_del_short_false_link</code>, <code>_primary</code>, <code>_advance</code>. These target <em>cross-haplotype false bridges</em> — short overlaps that connect reads from opposite haplotypes through a repeat. Miniasm has no equivalent.</p>
+</section>
+<section id="trio-aware-bubble-popping-and-trio-edge-filtering" class="level3">
+<h3 class="anchored" data-anchor-id="trio-aware-bubble-popping-and-trio-edge-filtering">3.3 Trio-aware bubble popping and trio-edge filtering</h3>
+<ul>
+<li><p><code>asg_pop_bubble_primary_trio</code>. Distinct from miniasm’s <code>asg_pop_bubble</code>: the primary path is chosen by trio assignment, and the alternate is preserved into the <code>a_ctg.gfa</code> output rather than discarded.</p></li>
+<li><p><code>drop_edges_by_trio</code>. With trio data from parental short-read <img src="https://latex.codecogs.com/png.latex?k">-mers, each read gets a tag <code>trio_flag[r] ∈ {paternal, maternal, ambiguous}</code>. Any arc whose endpoints are tagged with opposite parents is deleted unconditionally:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode cpp code-with-copy"><code class="sourceCode cpp"><span id="cb1-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">(</span>trio_flag<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">[</span>qn<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">]</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> AMBIGU <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&amp;&amp;</span> trio_flag<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">[</span>tn<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">]</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> AMBIGU<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">)</span></span>
+<span id="cb1-2">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">(</span>trio_flag<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">[</span>qn<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">]</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> trio_flag<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">[</span>tn<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">])</span></span>
+<span id="cb1-3">        arc<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>del <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">;</span></span></code></pre></div></div></li>
+</ul>
+</section>
+<section id="wrapped-around-an-iterative-error-correction-loop" class="level3">
+<h3 class="anchored" data-anchor-id="wrapped-around-an-iterative-error-correction-loop">3.4 Wrapped around an iterative error-correction loop</h3>
+<p><code>asg_arc_del_trans</code> is invoked at multiple call sites. Between calls, hifiasm re-runs base-level error correction and overlap recomputation. Miniasm does graph cleaning <em>once</em> over the read set it was given.</p>
+</section>
+<section id="multi-output-graph" class="level3">
+<h3 class="anchored" data-anchor-id="multi-output-graph">3.5 Multi-output graph</h3>
+<p>Miniasm emits one GFA. Hifiasm emits at minimum four: raw unitigs (<code>r_utg.gfa</code>), processed unitigs (<code>p_utg.gfa</code>), primary contigs (<code>p_ctg.gfa</code>), alternate contigs (<code>a_ctg.gfa</code>).</p>
+<p><strong>The operational summary:</strong> every step in the miniasm cascade has, in hifiasm, either a diploid- or trio-aware sibling, and the whole cascade is iterated inside an error-correction outer loop. The clean-and-collapse-everything heuristic of miniasm becomes a clean-while-preserving-heterozygosity discipline in hifiasm.</p>
+<hr>
+</section>
+</section>
+<section id="replacing-the-heuristics-with-deep-learning-what-we-tried" class="level2">
+<h2 class="anchored" data-anchor-id="replacing-the-heuristics-with-deep-learning-what-we-tried">4. Replacing the heuristics with deep learning — what we tried</h2>
+<p>The motivating question: every routine in hifiasm’s diploid cascade encodes a hand-tuned decision boundary (drop ratios, fuzz tolerances, <code>trio_flag</code> inequalities, exact-match thresholds). Can a graph neural network <em>learn</em> those boundaries directly from the assembler’s own gold-standard output — well enough to take its place on real human data?</p>
+<p>We attacked this in two phases. <strong>Phase 1</strong> establishes a tensor-only pipeline on a haploid genome (yeast) where the gold standard is miniasm — a tractable warm-up because there is no heterozygosity to preserve, so any heuristic that collapses too aggressively gets caught immediately by N50. <strong>Phase 2</strong> is the actual replacement target: hifiasm’s diploid <code>r_utg</code> graph on real HG002 HiFi reads.</p>
+<section id="phase-1-haploid-groundwork-yeast-miniasm" class="level3">
+<h3 class="anchored" data-anchor-id="phase-1-haploid-groundwork-yeast-miniasm">4.1 Phase 1 — haploid groundwork (yeast / miniasm)</h3>
+<p>All yeast numbers below are evaluated against the SacCer3 reference with QUAST defaults. Reads: PBSIM3 (Ono et al.&nbsp;2021) at <code>--strategy wgs --method errhmm --depth 30 --length-mean 15000 --accuracy-mean 1.00</code> — a perfect-read stand-in for the output of a future learned base corrector. Overlapper: <code>minimap2 -x ava-pb</code> for the early GPU steps, hifiasm’s internal overlapper for the final.</p>
+<p><strong>Step 1 — boolean transitive reduction on GPU.</strong> Synthetic smoke test on a dense DAG (<img src="https://latex.codecogs.com/png.latex?N%20=%201%7B,%7D000">, <img src="https://latex.codecogs.com/png.latex?E%20=%2025%7B,%7D570">, chains of 4–5 hops): <code>torch.sparse_coo_tensor</code> with <img src="https://latex.codecogs.com/png.latex?M_r%20=%20M%20%5Csetminus%20(M%20%5Ccdot%20M)">, <img src="https://latex.codecogs.com/png.latex?%5Ccdot"> boolean. Result: bit-identical to <code>networkx.transitive_reduction</code> (both kept 2,325 arcs), GPU 0.149 s vs CPU 0.259 s. On real yeast at 21,591 raw overlaps the GPU was correct but over-aggressive — it dropped 21,102 arcs and left 489 vs miniasm’s 178, because it ran on the unfiltered hairball without the prior containment removal that miniasm does in its read-selection stages.</p>
+<blockquote class="blockquote">
+<p><strong>Lesson 1.</strong> A pure topological transitive reduction is correct in the Myers (2005) sense but useless on its own. The CPU cascade only works because <em>every</em> stage upstream of it (containment removal, two-pass read selection) has already done substantial filtering.</p>
+</blockquote>
+<p><strong>Step 2 — error-correction detour.</strong> Pure-tensor TR on uncorrected reads (PBSIM3 default ~99 %): the 1 % residual error rate baked massive error bubbles into the sparse matrix and the downstream layout produced a 117 MB hairball. The workaround was the <code>--accuracy-mean 1.00</code> setting — a stand-in for the perfect-corrector limit. The real fix is a learned base corrector (HERRO-line architectures; see Stanojević et al.&nbsp;2024 and DeepConsensus, Baid et al.&nbsp;2023), separately developed.</p>
+<blockquote class="blockquote">
+<p><strong>Lesson 2.</strong> Graph cleaning and base correction are not separable. Hifiasm wraps cleaning inside an error-correction outer loop for a reason: if the reads contain even single-percent error, no amount of downstream topological surgery can recover.</p>
+</blockquote>
+<p><strong>Step 3 — min-plus tropical semiring.</strong> Boolean TR was deleting metrically-impossible “transitive” arcs through repeat regions. Replacing <img src="https://latex.codecogs.com/png.latex?(%5Ctimes,%20+)"> with <img src="https://latex.codecogs.com/png.latex?(%5Cmin,%20+)"> as in §1.4 lifts the fuzz tolerance into the algebra. Implementation: <code>torch.scatter_reduce_(..., reduce='amin')</code> over the COO representation. Yeast N50: 97,312 → 100,730 bp.</p>
+<blockquote class="blockquote">
+<p><strong>Lesson 3.</strong> Myers’s fuzz parameter is not an implementation detail; it is the difference between Boolean reachability and metric reachability. The tropical semiring (Maclagan &amp; Sturmfels 2015 textbook) is the right algebra for shortest-path-style operations on weighted graphs and lifts naturally onto GPU sparse kernels.</p>
+</blockquote>
+<p><strong>Step 4 — bidirected 2N × 2N tensors and the full miniasm cascade.</strong> A walk through the assembler internals showed that our single-strand sparse matrix was hallucinating transitive paths through what should have been reverse-complement nodes. Switching to the 2N representation with twin-arc enforcement (every <img src="https://latex.codecogs.com/png.latex?u%20%5Cto%20v"> deletion triggers the symmetric <img src="https://latex.codecogs.com/png.latex?v%5E%7Bc%7D%20%5Cto%20u%5E%7Bc%7D"> deletion) and adding the full miniasm-style cascade — fuzz TR + tip clip + bubble pop + iterated short-overlap removal — produced the second-to-last row below. Pushing it one step further (extra tip + bubble + short-overlap rounds beyond miniasm’s stop point) collapsed the assembly.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 15%">
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 21%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Configuration</th>
+<th style="text-align: right;"># contigs</th>
+<th style="text-align: right;">Total (bp)</th>
+<th style="text-align: right;">N50 (bp)</th>
+<th style="text-align: right;">Largest (bp)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>miniasm</code> (default 30× HiFi)</td>
+<td style="text-align: right;">28</td>
+<td style="text-align: right;">12,182,237</td>
+<td style="text-align: right;"><strong>784,824</strong></td>
+<td style="text-align: right;">1,529,136</td>
+</tr>
+<tr class="even">
+<td><code>miniasm</code> (100 % accurate reads)</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">11,925,444</td>
+<td style="text-align: right;"><strong>784,847</strong></td>
+<td style="text-align: right;">1,529,136</td>
+</tr>
+<tr class="odd">
+<td>GPU boolean TR (Step 1)</td>
+<td style="text-align: right;">266</td>
+<td style="text-align: right;">18,911,523</td>
+<td style="text-align: right;">97,312</td>
+<td style="text-align: right;">321,651</td>
+</tr>
+<tr class="even">
+<td>GPU + min-plus (Step 3)</td>
+<td style="text-align: right;">121</td>
+<td style="text-align: right;">10,447,510</td>
+<td style="text-align: right;">100,730</td>
+<td style="text-align: right;">225,564</td>
+</tr>
+<tr class="odd">
+<td>GPU + bidirected (Step 4)</td>
+<td style="text-align: right;">102</td>
+<td style="text-align: right;">11,612,891</td>
+<td style="text-align: right;">142,041</td>
+<td style="text-align: right;">314,935</td>
+</tr>
+<tr class="even">
+<td>GPU + strict miniasm cascade</td>
+<td style="text-align: right;">120</td>
+<td style="text-align: right;">12,573,862</td>
+<td style="text-align: right;">149,960</td>
+<td style="text-align: right;">457,834</td>
+</tr>
+<tr class="odd">
+<td>GPU + extra tip+bubble (<strong>over-pruned</strong>)</td>
+<td style="text-align: right;">75</td>
+<td style="text-align: right;"><strong>2,494,027</strong></td>
+<td style="text-align: right;">31,962</td>
+<td style="text-align: right;">70,957</td>
+</tr>
+<tr class="even">
+<td>Dual-Headed GNN inference (Step 6 below)</td>
+<td style="text-align: right;">28</td>
+<td style="text-align: right;">12,180,284</td>
+<td style="text-align: right;"><strong>784,824</strong></td>
+<td style="text-align: right;">1,529,136</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<p><strong>Lesson 4.</strong> The DNA double helix is not optional. Any sparse-tensor representation of a string graph has to be 2N × 2N with twin-arc enforcement; otherwise the algebra hallucinates transitive paths through reverse-complement copies of the same read. Equivalently: <img src="https://latex.codecogs.com/png.latex?M%20%5Cin%20%5C%7B0,1%5C%7D%5E%7B2N%20%5Ctimes%202N%7D"> must satisfy the involution <img src="https://latex.codecogs.com/png.latex?M_%7Buv%7D%20=%20M_%7Bv%5Ec%20u%5Ec%7D"> for every <img src="https://latex.codecogs.com/png.latex?u,%20v">.</p>
+</blockquote>
+<blockquote class="blockquote">
+<p><strong>Lesson 5.</strong> Miniasm’s default parameters are a precariously-tuned local optimum. The “over-pruned” row shows that one extra tip-and-bubble round on a small repetitive genome collapses total length by 4.7× and N50 by 4.7×. The CPU cascade works because it happens to stop just <em>before</em> this catastrophe, not because the cascade itself is robust.</p>
+</blockquote>
+<p><strong>Step 5 — edge-only GNN.</strong> A 3-layer message-passing network classifying each arc:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AP_%5Ctext%7Bedge%7D(u,%20v)%20=%20%5Csigma%5C!%5Cbigl(%5C,%5Cmathrm%7BMLP%7D%5Cbigl(%5B%5Cmathbf%7Bh%7D_u,%20%5Cmathbf%7Bh%7D_v,%20%5Cmathbf%7Be%7D_%7Buv%7D%5D%5Cbigr)%5Cbigr).%0A"></p>
+<p>Edge precision was excellent; assembly contiguity was destroyed. Reads with no surviving incident arcs stayed in the graph as zero-degree islands, and the layout engine terminated contigs at every dead-end.</p>
+<blockquote class="blockquote">
+<p><strong>Lesson 6.</strong> Edge classification alone is the wrong objective. The downstream layout depends on <em>node survival</em>; classifying edges without simultaneously deciding which reads to keep produces a graph that looks clean by per-arc precision but is structurally broken.</p>
+</blockquote>
+<p><strong>Step 6 — Dual-Headed GNN.</strong> Topology is jointly node-and-edge. Add a node head and mask edges by the boolean conjunction:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cmathrm%7BMask%7D(u,%20v)%20%5C;=%5C;%20%5Cbigl%5BP_%5Ctext%7Bnode%7D(u)%20%5Cge%20%5Ctau%5Cbigr%5D%20%5C,%5Cland%5C,%20%5Cbigl%5BP_%5Ctext%7Bnode%7D(v)%20%5Cge%20%5Ctau%5Cbigr%5D%20%5C,%5Cland%5C,%20%5Cbigl%5BP_%5Ctext%7Bedge%7D(u,%20v)%20%5Cge%20%5Ctau%5Cbigr%5D.%0A"></p>
+<p>Trained on labels extracted from miniasm’s golden GFA (every arc on the unitig path → 1, else 0), this model reduces the 29,560-edge yeast graph to exactly 4,920 arcs at 100 % precision / 100 % recall — the bottom row above, N50 784,824 bp, bit-identical to miniasm.</p>
+<blockquote class="blockquote">
+<p><strong>Lesson 7.</strong> Topological masking — requiring both endpoints <em>and</em> the connecting edge to survive — is the minimal joint-classification scheme that respects the fact that the downstream consumer is a layout engine, not a per-edge auditor.</p>
+</blockquote>
+<p>Phase 1 ends here. The yeast prototype proves the tensor pipeline can match a haploid heuristic exactly. Nothing in it tests the harder claim — that a GNN can replace <strong>diploid</strong> heuristics, where the right answer is not “collapse one branch” but “preserve heterozygosity while removing chimeric bridges.”</p>
+</section>
+<section id="phase-2-diploid-replacement-hg002-hifiasm" class="level3">
+<h3 class="anchored" data-anchor-id="phase-2-diploid-replacement-hg002-hifiasm">4.2 Phase 2 — diploid replacement (HG002 / hifiasm)</h3>
+<p>We switched ground truth from miniasm to hifiasm’s raw unitig graph (<code>.r_utg.gfa</code>) on real HG002 30× PacBio HiFi reads (Ashkenazi Jewish, NA24385) from the HPRC (Liao et al.&nbsp;2023). Hifiasm’s internal cleanup produces ~321 k edges across ~250 disjoint connected components. Class imbalance: ~93 % “true biological” arcs / 7 % chimeric or repeat-collapse arcs.</p>
+<p><strong>Ground-truth labels.</strong> Each L-line endpoint is mapped against a diploid reference (HPRC assemblies; T2T-CHM13 v2.0 from Nurk et al.&nbsp;2022 for the haploid fallback). An L-line is labeled <code>1</code> iff both endpoints share the same target sequence at <code>mapq &gt; 10</code>, else <code>0</code>. Two pipelines exist:</p>
+<ul>
+<li>HG002 only — <code>minimap2</code> (Li 2018) against haploid CHM13v2.0. Fast, heuristic, sufficient for initial training.</li>
+<li>Tri-ancestry (HG005, HG00733) — <code>wfmash</code> (Guarracino et al.&nbsp;2021) against the per-sample diploid <code>&lt;paternal + maternal&gt;</code> reference. Wavefront-algorithm (Marco-Sola et al.&nbsp;2021) gives mathematically optimal base-level alignments, which we need for the cross-haplotype boundary calls.</li>
+</ul>
+<p>The choice of wfmash for diploid labeling is deliberate: on a heterozygous SNP the two haplotypes are 99 %+ identical and minimap2’s heuristic chaining can resolve the mismap either way. WFA-based alignment is exact and the resulting labels are essentially noise-free — which we confirm empirically below by ablating label smoothing.</p>
+<p><strong>Architecture sweep.</strong> Three architectural waves on a single H200-class GPU. Class imbalance handled by <code>BCEWithLogitsLoss</code> with a dynamic <code>pos_weight</code> derived from each component’s edge-label distribution. Subgraph batching: connected-component batching rather than random <code>NeighborLoader</code> sampling, because edge dropping changes the graph Laplacian and breaks mathematical equivalence with full-batch training (verified to the 6th decimal place against a chr22 baseline). Hifiasm’s <code>.r_utg</code> is naturally fragmented into hundreds of disjoint components, so this is essentially <strong>Cluster-GCN</strong> (Chiang et al.&nbsp;2019) with a pre-existing partition — no METIS step needed.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 18%">
+<col style="width: 18%">
+<col style="width: 18%">
+<col style="width: 18%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Wave</th>
+<th>Layers × hidden</th>
+<th>Conv</th>
+<th>Edge-feature handling</th>
+<th style="text-align: right;">Val edge acc</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>3 × 64–128</td>
+<td><code>SAGEConv</code></td>
+<td>concat at output</td>
+<td style="text-align: right;">87.81 %</td>
+</tr>
+<tr class="even">
+<td>2a</td>
+<td>4 × 128</td>
+<td><code>SAGEConv</code> + dropout 0.2</td>
+<td>concat at output</td>
+<td style="text-align: right;">92.16 %</td>
+</tr>
+<tr class="odd">
+<td>2b</td>
+<td>4 × 128</td>
+<td><code>GATv2Conv</code></td>
+<td>attention over edges</td>
+<td style="text-align: right;">unstable: peaks 95.5 %, collapses</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>5 × 512</td>
+<td><code>GINEConv</code></td>
+<td>edge-conditioned messaging (§1.5)</td>
+<td style="text-align: right;"><strong>97.08 %</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The Wave 3 result is the empirical confirmation of the 1-WL expressivity bound: the network has to distinguish transitive arcs from tips from bubbles from cross-haplotype bridges in a single forward pass, and GINE’s edge-conditioned summation is the only one of the three that preserves enough overlap-geometry information through 5 layers of message passing to do that reliably.</p>
+<blockquote class="blockquote">
+<p><strong>Lesson 8.</strong> Architecture matters more than depth. SAGE 4×128 (Wave 2a) and GINE 5×512 (Wave 3) differ by 35× in parameter count, but the 5-point accuracy gap is dominated by <em>how</em> edge features enter message passing, not by capacity. Edge features concatenated at the readout only see the post-aggregation node embeddings; edge features injected into every layer of <img src="https://latex.codecogs.com/png.latex?%5Cpsi"> propagate through the full receptive field.</p>
+</blockquote>
+<blockquote class="blockquote">
+<p><strong>Lesson 9.</strong> Attention is not free. GATv2 (Wave 2b) was theoretically the most expressive of the non-GINE options, but training was unstable in our setting — it spiked to 95.5 % mid-run and collapsed. We did not chase the instability; we suspect it is the standard “attention is sensitive to learning rate × batch composition” problem (Xiong et al.&nbsp;2020) compounded by extreme class imbalance.</p>
+</blockquote>
+<p><strong>Ablation tournament.</strong> With the architecture fixed at GINE 5×512, we ran an independent ablation (each intervention solo) to identify what closes the residual ~3 % gap. Results:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Variant</th>
+<th style="text-align: right;">Val edge acc</th>
+<th style="text-align: right;">Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Baseline GINE (BCE)</td>
+<td style="text-align: right;">95.50 %</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td><strong>+ Focal Loss only</strong> (<img src="https://latex.codecogs.com/png.latex?%5Cgamma%20=%202">)</td>
+<td style="text-align: right;"><strong>97.44 %</strong></td>
+<td style="text-align: right;">+1.94</td>
+</tr>
+<tr class="odd">
+<td>+ Deep MLP (3-layer GINE-MLP)</td>
+<td style="text-align: right;">97.08 %</td>
+<td style="text-align: right;">+1.58</td>
+</tr>
+<tr class="even">
+<td>+ GraphNorm only</td>
+<td style="text-align: right;">96.52 %</td>
+<td style="text-align: right;">+1.02</td>
+</tr>
+<tr class="odd">
+<td>+ Label smoothing only (<img src="https://latex.codecogs.com/png.latex?%5Cepsilon%20=%200.05">)</td>
+<td style="text-align: right;">93.43 %</td>
+<td style="text-align: right;"><strong>−2.07</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Focal loss (Lin et al.&nbsp;2017) reweights the BCE by <img src="https://latex.codecogs.com/png.latex?(1%20-%20p_t)%5E%5Cgamma"> where <img src="https://latex.codecogs.com/png.latex?p_t"> is the model’s probability of the true class:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cmathcal%7BL%7D_%5Ctext%7Bfocal%7D(p_t)%20%5C;=%5C;%20-%5C,(1%20-%20p_t)%5E%7B%5Cgamma%7D%20%5C,%5Clog%20p_t,%5Cqquad%20%5Cgamma%20=%202.%0A"></p>
+<p>When <img src="https://latex.codecogs.com/png.latex?p_t"> is high (confident-and-correct) the prefactor <img src="https://latex.codecogs.com/png.latex?(1%20-%20p_t)%5E%5Cgamma%20%5Cto%200"> and the loss zeros out; gradient capacity concentrates on the hard cases. For our 93 / 7 imbalance this dominates: a cumulative variant combining all four interventions scored 97.17 %, <em>below</em> focal alone — the regularisers actively interfere with one another once focal is in place. (Class-balanced loss, Cui et al.&nbsp;2019, gives a similar reweighting via the effective-number-of-samples lens; we did not separately ablate it.)</p>
+<blockquote class="blockquote">
+<p><strong>Lesson 10.</strong> Focal loss is the right tool for the topological-imbalance problem and the gradient-imbalance problem at once. The 93 % of “easy” true biological edges would otherwise dominate the gradient and starve learning on the 7 % chimeric/bridge edges that <em>are</em> what we need the model for.</p>
+</blockquote>
+<blockquote class="blockquote">
+<p><strong>Lesson 11.</strong> Label smoothing is informative in reverse. A −2.07 pp regression from <img src="https://latex.codecogs.com/png.latex?%5Cepsilon%20=%200.05"> smoothing means the wfmash labels are clean enough that forcing the network to express uncertainty actively destroys it. This is unusual — most production ML labels benefit from ε ∈ [0.05, 0.1] — and it argues for keeping wfmash, not minimap2, as the source-of-truth aligner for diploid label generation.</p>
+</blockquote>
+<p><strong>Final locked architecture for the tri-ancestry scale-up:</strong></p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7BGINEConv%7D%5C;(5%5C,%5Ctext%7Blayers%7D,%5C;512%5C,%5Ctext%7Bhidden%7D,%5C;%5Ctext%7BFocal%7D%5C,%5Cgamma%7B=%7D2,%5C;%5Ctext%7Bwfmash%20labels%7D)%20%5C;%5Crightarrow%5C;%2097.44%5C%25.%0A"></p>
+<hr>
+</section>
+</section>
+<section id="what-we-did-not-solve-open-problems" class="level2">
+<h2 class="anchored" data-anchor-id="what-we-did-not-solve-open-problems">5. What we did not solve — open problems</h2>
+<p>The 97.44 % is not 100 %. A few things remain:</p>
+<ol type="1">
+<li><strong>Cross-haplotype bridges in alpha-satellite arrays.</strong> The hardest 2.5 % of edges concentrate in centromeric repeats where the paternal and maternal arrays differ structurally rather than by SNPs. The current GINE features (overlap length, identity, match-length) do not include any signal about sequence-level repeat structure; the model has to infer it from topology alone. A natural extension is to add per-edge <img src="https://latex.codecogs.com/png.latex?k">-mer-frequency features (cf.&nbsp;Vrček et al.&nbsp;2022’s compositional features) or to integrate a small frozen DNA-LM embedding of the overlap sequence as an edge feature.</li>
+<li><strong>No trio data.</strong> Hifiasm’s <code>_trio</code> family of routines uses parental short-read <img src="https://latex.codecogs.com/png.latex?k">-mers to tag each read as paternal/maternal/ambiguous. We are training without trio for ancestry generality — HG002 has trio data, HG005 and HG00733 do not — but this means we are implicitly asking the network to <em>infer</em> haplotype assignment from graph topology alone. Adding a phasing pre-step (e.g.&nbsp;inheriting <code>trio_flag</code> labels from hifiasm’s own assignment, where available) would likely close another 1–2 percentage points.</li>
+<li><strong>Layout, not just pruning.</strong> This work replaces hifiasm’s graph-cleaning cascade. The downstream unitig layout (the path-walking that emits <code>p_ctg</code> and <code>a_ctg</code>) is still C, and remains the next obvious GPU target.</li>
+<li><strong>The base-corrector is upstream and absent.</strong> Everything above is conditioned on either real HiFi reads (which hifiasm has already error-corrected internally) or PBSIM3 perfect simulation. A standalone learned corrector — a permutation-invariant transformer over the read pileup, trained with wfmash CIGAR ground truth (HERRO-line; Stanojević et al.&nbsp;2024; DeepConsensus, Baid et al.&nbsp;2023) — is the upstream piece that closes the full pipeline.</li>
+</ol>
+<hr>
+</section>
+<section id="full-ledger" class="level2">
+<h2 class="anchored" data-anchor-id="full-ledger">6. Full ledger</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Step</th>
+<th>Outcome</th>
+<th>Lesson</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>Boolean GPU TR (Phase 1)</td>
+<td>✓ bit-identical on synthetic; ❌ over-pruned on real</td>
+<td>No containment prefilter; topology ≠ cleaning</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>Assembly from uncorrected reads</td>
+<td>❌ 117 MB hairball</td>
+<td>Cleaning and base correction inseparable</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>Simulated 100 % accurate reads</td>
+<td>✓ proves topology math</td>
+<td>Stand-in for a learned base corrector</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>Min-plus tropical semiring</td>
+<td>✓ +3 kb N50</td>
+<td><img src="https://latex.codecogs.com/png.latex?(%5Ctimes,+)"> ignores fuzz; tropical algebra lifts it</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>Bidirected 2N × 2N</td>
+<td>✓ +42 kb N50</td>
+<td>Single-strand tensors hallucinate transitive paths through RC nodes</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td>Full miniasm cascade in PyTorch</td>
+<td>✓ matches miniasm’s N50</td>
+<td>Faithful port of fuzz TR + tip + bubble + iterated short-ovlp</td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td>Push cleanup further (tip+bubble extras)</td>
+<td>❌ 11.6 MB → 2.5 MB</td>
+<td>Miniasm defaults are a precariously-tuned local optimum</td>
+</tr>
+<tr class="even">
+<td>8</td>
+<td>Edge-only GNN</td>
+<td>❌ fragmentation</td>
+<td>Edge precision is the wrong objective when downstream is layout</td>
+</tr>
+<tr class="odd">
+<td>9</td>
+<td>Dual-Headed GNN (node + edge head)</td>
+<td>✓ 100 % parity on yeast</td>
+<td>Topological mask requires both endpoints</td>
+</tr>
+<tr class="even">
+<td>10</td>
+<td>Scale to HG002 / hifiasm <code>r_utg</code> (Phase 2)</td>
+<td>✓ ~250 components, 93/7 imbalance</td>
+<td>Diploid replacement is the real test</td>
+</tr>
+<tr class="odd">
+<td>11</td>
+<td>Arch sweep SAGE → GATv2 → GINE</td>
+<td>✓ 87.81 → 92.16 → 97.08 %</td>
+<td>Edge-conditioned messaging dominates concat-after</td>
+</tr>
+<tr class="even">
+<td>12</td>
+<td>GATv2 attention</td>
+<td>❌ unstable</td>
+<td>Attention sensitivity × extreme imbalance</td>
+</tr>
+<tr class="odd">
+<td>13</td>
+<td>ERA: focal loss</td>
+<td>✓ 95.50 → 97.44 %</td>
+<td>Class-imbalance fix; dominates other interventions</td>
+</tr>
+<tr class="even">
+<td>14</td>
+<td>ERA: deep MLP, GraphNorm</td>
+<td>✓ smaller wins; clash with focal</td>
+<td>WL-expressivity gain saturates fast</td>
+</tr>
+<tr class="odd">
+<td>15</td>
+<td>ERA: label smoothing (<img src="https://latex.codecogs.com/png.latex?%5Cepsilon%20=%200.05">)</td>
+<td>❌ −2.07 %</td>
+<td>wfmash labels too clean for smoothing — empirical proof of label quality</td>
+</tr>
+<tr class="even">
+<td>16</td>
+<td><code>NeighborLoader</code> random subgraph batching</td>
+<td>❌ rejected</td>
+<td>Edge dropping changes graph Laplacian</td>
+</tr>
+<tr class="odd">
+<td>17</td>
+<td>Connected-component batching</td>
+<td>✓ bit-identical to full-batch</td>
+<td>Hifiasm <code>.r_utg</code> is naturally fragmented (Cluster-GCN with free partition)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">7. References</h2>
+<p><strong>OLC and string graph foundations</strong></p>
+<ol type="1">
+<li>Myers, E.W. (2005) <strong>The fragment assembly string graph.</strong> <em>Bioinformatics</em> 21 (Suppl. 2): ii79–ii85. — Transitive-reduction theorem used in §1.3.</li>
+<li>Li, H. (2016) <strong>Minimap and miniasm: fast mapping and de novo assembly for noisy long sequences.</strong> <em>Bioinformatics</em> 32 (14): 2103–2110. — Reference for §2.</li>
+<li>Cheng, H., Concepcion, G.T., Feng, X., Zhang, H., Li, H. (2021) <strong>Haplotype-resolved de novo assembly using phased assembly graphs with hifiasm.</strong> <em>Nature Methods</em> 18: 170–175. — Reference for §3.</li>
+<li>Chin, C.-S. et al.&nbsp;(2016) <strong>Phased diploid genome assembly with single-molecule real-time sequencing</strong> (FALCON-Unzip). <em>Nature Methods</em> 13: 1050–1054. — Earliest diploid-aware long-read assembler; design ancestor of hifiasm’s <code>p_ctg</code>/<code>a_ctg</code> split.</li>
+<li>Koren, S., Walenz, B.P., Berlin, K., Miller, J.R., Bergman, N.H., Phillippy, A.M. (2017) <strong>Canu: scalable and accurate long-read assembly via adaptive k-mer weighting and repeat separation.</strong> <em>Genome Research</em> 27: 722–736. — Long-read assembler with explicit correction-then-assembly stages.</li>
+<li>Koren, S. et al.&nbsp;(2018) <strong>De novo assembly of haplotype-resolved genomes with trio binning.</strong> <em>Nature Biotechnology</em> 36: 1174–1182. — Source of the parental-<img src="https://latex.codecogs.com/png.latex?k">-mer trio approach hifiasm’s <code>_trio</code> routines implement.</li>
+<li>Rautiainen, M. et al.&nbsp;(2023) <strong>Telomere-to-telomere assembly of diploid chromosomes with Verkko.</strong> <em>Nature Biotechnology</em> 41: 1474–1482. — Current state-of-the-art for diploid assembly; produced the HPRC diploid references used here as ground truth.</li>
+</ol>
+<p><strong>Alignment</strong></p>
+<ol start="8" type="1">
+<li>Li, H. (2018) <strong>Minimap2: pairwise alignment for nucleotide sequences.</strong> <em>Bioinformatics</em> 34 (18): 3094–3100. — Heuristic aligner; used for the all-vs-all <code>ava-pb</code> overlapper in §4.1 and HG002 haploid labelling in §4.2.</li>
+<li>Marco-Sola, S., Moure, J.C., Moreto, M., Espinosa, A. (2021) <strong>Fast gap-affine pairwise alignment using the wavefront algorithm.</strong> <em>Bioinformatics</em> 37 (4): 456–463. — WFA, the optimal-alignment kernel used by wfmash.</li>
+<li>Guarracino, A., Heumos, S., Nahnsen, S., Prins, P., Garrison, E. (2021) <strong><code>wfmash</code>: whole-chromosome pairwise alignment using the hierarchical wavefront algorithm.</strong> Bioinformatics. — Diploid-reference labeller in §4.2.</li>
+<li>Marçais, G. et al.&nbsp;(2018) <strong>MUMmer4: A fast and versatile genome alignment system.</strong> <em>PLoS Comput Biol</em> 14: e1005944. — Canonical genome-alignment benchmark.</li>
+</ol>
+<p><strong>Reference data</strong></p>
+<ol start="12" type="1">
+<li>Liao, W.-W. et al.&nbsp;(2023) <strong>A draft human pangenome reference.</strong> <em>Nature</em> 617: 312–324. — HPRC source for the HG002 / HG005 / HG00733 reads and diploid references.</li>
+<li>Nurk, S. et al.&nbsp;(2022) <strong>The complete sequence of a human genome.</strong> <em>Science</em> 376: 44–53. — T2T-CHM13 v2.0, the haploid reference used for HG002 labelling.</li>
+</ol>
+<p><strong>Graph neural networks</strong></p>
+<ol start="14" type="1">
+<li>Gilmer, J., Schoenholz, S.S., Riley, P.F., Vinyals, O., Dahl, G.E. (2017) <strong>Neural message passing for quantum chemistry.</strong> <em>ICML</em>. — The MPNN framework that subsumes all the architectures in §4.2.</li>
+<li>Kipf, T.N., Welling, M. (2017) <strong>Semi-supervised classification with graph convolutional networks.</strong> <em>ICLR</em>. — <code>GCN</code>, baseline architecture not directly tried but referenced in §1.5.</li>
+<li>Hamilton, W., Ying, R., Leskovec, J. (2017) <strong>Inductive representation learning on large graphs.</strong> <em>NeurIPS</em>. — <code>GraphSAGE</code>, our Wave-1 baseline.</li>
+<li>Veličković, P., Cucurull, G., Casanova, A., Romero, A., Liò, P., Bengio, Y. (2018) <strong>Graph attention networks.</strong> <em>ICLR</em>. — Original <code>GAT</code>.</li>
+<li>Brody, S., Alon, U., Yahav, E. (2022) <strong>How attentive are graph attention networks?</strong> <em>ICLR</em>. — <code>GATv2</code>, our Wave 2b attempt.</li>
+<li>Xu, K., Hu, W., Leskovec, J., Jegelka, S. (2019) <strong>How powerful are graph neural networks?</strong> <em>ICLR</em>. — Defines <code>GIN</code>; proves the 1-WL bound used in §1.5.</li>
+<li>Hu, W. et al.&nbsp;(2020) <strong>Strategies for pre-training graph neural networks.</strong> <em>ICLR</em>. — Introduces <code>GINEConv</code>, the edge-conditioned variant in the final architecture.</li>
+<li>Corso, G., Cavalleri, L., Beaini, D., Liò, P., Veličković, P. (2020) <strong>Principal Neighbourhood Aggregation for graph nets</strong> (PNA). <em>NeurIPS</em>. — Strictly more expressive aggregation family than GIN; not tried in this work.</li>
+<li>Dwivedi, V.P., Bresson, X. (2021) <strong>A generalization of transformer networks to graphs.</strong> <em>AAAI workshop</em>. — Graph transformer; another architecture not tried.</li>
+<li>Cai, T. et al.&nbsp;(2021) <strong>GraphNorm: a principled approach to accelerating graph neural network training.</strong> <em>ICML</em>. — The normalisation ablated in §4.2.</li>
+</ol>
+<p><strong>Graph batching</strong></p>
+<ol start="24" type="1">
+<li>Chiang, W.-L., Liu, X., Si, S., Li, Y., Bengio, S., Hsieh, C.-J. (2019) <strong>Cluster-GCN: an efficient algorithm for training deep and large graph convolutional networks.</strong> <em>KDD</em>. — The method our connected-component batching is a free-partition special case of.</li>
+<li>Zeng, H., Zhou, H., Srivastava, A., Kannan, R., Prasanna, V. (2020) <strong>GraphSAINT: graph sampling based inductive learning method.</strong> <em>ICLR</em>. — Alternative sampling-based batching; rejected here for the Laplacian-distortion reason in §4.2.</li>
+</ol>
+<p><strong>Loss and regularisation</strong></p>
+<ol start="26" type="1">
+<li>Lin, T.-Y., Goyal, P., Girshick, R., He, K., Dollár, P. (2017) <strong>Focal loss for dense object detection.</strong> <em>ICCV</em>. — The 95.50 → 97.44 % win in §4.2.</li>
+<li>Cui, Y., Jia, M., Lin, T.-Y., Song, Y., Belongie, S. (2019) <strong>Class-balanced loss based on effective number of samples.</strong> <em>CVPR</em>. — Alternative imbalance treatment; not ablated.</li>
+<li>Müller, R., Kornblith, S., Hinton, G. (2019) <strong>When does label smoothing help?</strong> <em>NeurIPS</em>. — Theoretical companion to our −2.07 % label-smoothing result.</li>
+<li>Xiong, R. et al.&nbsp;(2020) <strong>On layer normalization in the transformer architecture.</strong> <em>ICML</em>. — Background for the GATv2 instability hypothesis in §4.2.</li>
+</ol>
+<p><strong>Learning-based assembly</strong></p>
+<ol start="30" type="1">
+<li>Vrček, L., Burdyshaw, B., Mihaljević, M., Bresson, X., Stošić, B.D., Šikić, M. (2022) <strong>Learning to untangle genome assembly with graph convolutional networks</strong> (the GNNome system). — First clean formulation of edge classification on overlap graphs; supervised-classification framing we extend with the dual-headed mask.</li>
+</ol>
+<p><strong>Long-read error correction (upstream)</strong></p>
+<ol start="31" type="1">
+<li>Stanojević, D. et al.&nbsp;(2024) <strong>HERRO: end-to-end accurate read correction with deep learning.</strong> <em>bioRxiv</em> preprint. — Reference base-correction architecture.</li>
+<li>Baid, G. et al.&nbsp;(2023) <strong>DeepConsensus improves the accuracy of sequences with a gap-aware sequence transformer</strong> (DeepConsensus). <em>Nature Biotechnology</em> 41: 232–238. — Production DL HiFi consensus, a parallel design to the HERRO line.</li>
+</ol>
+<p><strong>Simulation</strong></p>
+<ol start="33" type="1">
+<li>Ono, Y., Asai, K., Hamada, M. (2021) <strong>PBSIM3: a simulator for all types of PacBio and ONT long reads.</strong> <em>NAR Genomics and Bioinformatics</em> 4: lqac092. — Generator of the simulated reads used throughout §4.1.</li>
+</ol>
+<p><strong>Tropical semiring</strong></p>
+<ol start="34" type="1">
+<li>Maclagan, D., Sturmfels, B. (2015) <strong>Introduction to Tropical Geometry.</strong> <em>Graduate Studies in Mathematics, AMS</em>. — Reference for the <img src="https://latex.codecogs.com/png.latex?(%5Cmin,%20+)"> algebra used in §1.4.</li>
+</ol>
+<hr>
+<p><strong>Data note.</strong> HG002 (NA24385, Ashkenazi), HG005 (Han Chinese), HG00733 (Puerto Rican) 30× PacBio HiFi reads from the Human Pangenome Reference Consortium (HPRC). T2T-CHM13 v2.0 (Nurk et al.&nbsp;2022) used as the haploid reference; per-sample diploid references from HPRC (Liao et al.&nbsp;2023) used for the diploid labelling pipeline.</p>
+
+
+</section>
+
+ ]]></description>
+  <guid>https://eniktab.github.io/computational-notes/posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/</guid>
+  <pubDate>Tue, 26 May 2026 14:00:00 GMT</pubDate>
+</item>
+<item>
+  <title>From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity</title>
+  <dc:creator>Eli Niktab</dc:creator>
+  <link>https://eniktab.github.io/computational-notes/posts/2026/from-heuristics-to-deep-learning/</link>
+  <description><![CDATA[ 
+
+
+
+
+<p>For decades, the standard paradigm of <em>de novo</em> genome assembly has relied on highly complex, rigid heuristics. Gold-standard tools like <code>miniasm</code> and <code>hifiasm</code> are genuine engineering marvels, but beneath the hood, their topological graph-cleaning phases are dominated by massive, serialised <code>for</code>-loops. These heuristics scan raw overlaps to filter out contained reads, chimeric sequences, and spurious alignments, one edge at a time.</p>
+<p>As we enter the era of pangenomics and massive datasets, these serialised CPU operations create severe scaling bottlenecks. A single human genome produces billions of pairwise overlaps. Walking that graph sequentially on a CPU takes days, or at best about a day with heavy multithreading.</p>
+<p>So we asked: what if we stripped away the heuristics entirely? What if we reframed topological graph cleaning not as a series of imperative rules, but as a pure mathematical operation, namely a massive, parallelised matrix classification problem that runs natively on a GPU?</p>
+<p>Here, I document how we got there. It is also the story of every wall we hit, every hypothesis that failed, and every pivot we made along the way until we achieved 100% bitwise structural parity with the gold-standard CPU assembly on a yeast dataset using a dual-headed graph neural network.</p>
+<hr>
+<section id="the-hypothesis-assembly-as-matrix-operations" class="level2">
+<h2 class="anchored" data-anchor-id="the-hypothesis-assembly-as-matrix-operations">The Hypothesis: Assembly as Matrix Operations</h2>
+<p>The core hypothesis was deceptively simple: structural heuristics are just unlearned classification thresholds.</p>
+<p>In a traditional assembly graph, reads are nodes (<img src="https://latex.codecogs.com/png.latex?V">) and pairwise overlaps are edges (<img src="https://latex.codecogs.com/png.latex?E">). Tools like <code>miniasm</code> define rigid geometric rules, including span thresholds, overhang ratios, and containment checks, to decide which edges to delete. We hypothesised that if we converted the raw overlap geometry (read lengths, overlap spans, mapping qualities, and sequence identities) into a feature tensor <img src="https://latex.codecogs.com/png.latex?X">, a neural network could learn the exact multidimensional decision boundary required to prune the graph optimally.</p>
+<p>Because GPUs excel at large-scale matrix multiplications, processing a 50-million-edge graph becomes a single, highly parallelised millisecond-scale tensor operation rather than a multi-day CPU loop.</p>
+<hr>
+</section>
+<section id="the-graph-theory-underpinnings-abstracting-olc-topology" class="level2">
+<h2 class="anchored" data-anchor-id="the-graph-theory-underpinnings-abstracting-olc-topology">The Graph Theory Underpinnings: Abstracting OLC Topology</h2>
+<p>To appreciate why this matters, you need to understand what is happening inside the <strong>Overlap-Layout-Consensus (OLC)</strong> pipeline. After a sequence aligner like <code>minimap2</code> dumps all pairwise overlaps into a PAF file, the resulting string graph is incredibly noisy, even after base correction, with thousands of redundant paths, spurious edges from repeat sequences, and chimeric artefacts from sequencing errors.</p>
+<p>Historically, graph-theory algorithms are deployed in sequential cascades to clean this mess:</p>
+<ol type="1">
+<li><strong>Transitive Reduction (Myers, 2005):</strong> If directed edges <img src="https://latex.codecogs.com/png.latex?A%20%5Crightarrow%20B">, <img src="https://latex.codecogs.com/png.latex?B%20%5Crightarrow%20C">, and <img src="https://latex.codecogs.com/png.latex?A%20%5Crightarrow%20C"> all exist, the edge <img src="https://latex.codecogs.com/png.latex?A%20%5Crightarrow%20C"> is mathematically redundant (transitive) and must be pruned to reveal the true linear unitig path.</li>
+<li><strong>Tip Clipping:</strong> Dead-end paths shorter than a read length are assumed to be sequencing errors and are recursively sheared off.</li>
+<li><strong>Bubble Popping:</strong> Bifurcating paths that immediately reconverge represent heterozygosity or local errors and are collapsed into a single consensus path.</li>
+</ol>
+<p>In traditional tools, each of these is solved by iterative Breadth-First Searches (BFS) and sub-graph traversals. The CPU must “walk” the graph, inspecting neighbourhoods sequentially. Our bet was that a graph neural network, a multi-layer message-passing network, could aggregate the structural neighbourhood of each edge into a latent vector <img src="https://latex.codecogs.com/png.latex?%5Cmathbf%7Bh%7D_v">. Instead of hand-coding traversal rules, the GNN would learn to recognise the topological signatures of transitive edges, tips, and bubbles implicitly, compressing all those graph-walking algorithms into a single feed-forward classification pass.</p>
+<p>But before we got to the GNN, we went on quite a detour.</p>
+<hr>
+</section>
+<section id="step-1-gpu-sparse-boolean-transitive-reduction-the-first-aha" class="level2">
+<h2 class="anchored" data-anchor-id="step-1-gpu-sparse-boolean-transitive-reduction-the-first-aha">Step 1: GPU Sparse Boolean Transitive Reduction (The First “Aha”)</h2>
+<p>Our first move was to attack transitive reduction directly with pure matrix algebra. The math is elegant:</p>
+<p>Let <img src="https://latex.codecogs.com/png.latex?M"> be the adjacency matrix of a Directed Acyclic Graph. The transitive closure <img src="https://latex.codecogs.com/png.latex?M%5E*"> can be iteratively computed by <img src="https://latex.codecogs.com/png.latex?M_k%20=%20M_%7Bk-1%7D%20%5Ctimes%20M">, where <img src="https://latex.codecogs.com/png.latex?M_k"> contains all paths of exactly length <img src="https://latex.codecogs.com/png.latex?k">. The fully reduced graph is:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AM_%7Breduced%7D%20=%20M%20%5Csetminus%20%5Cleft(%20M%20%5Ccap%20%5Cbigcup_%7Bk=2%7D%5E%7B%5Cinfty%7D%20M_k%20%5Cright)%0A"></p>
+<p>We implemented this entirely in <code>torch.sparse_coo_tensor</code>, with no Python loops and no CPU dispatch overhead, just raw matrix multiplications on the GPU.</p>
+<section id="the-smoke-test-bit-identical-to-networkx" class="level3">
+<h3 class="anchored" data-anchor-id="the-smoke-test-bit-identical-to-networkx">The Smoke Test: Bit-Identical to NetworkX</h3>
+<p>We generated a dense synthetic DAG (<img src="https://latex.codecogs.com/png.latex?N=1%7B,%7D000"> nodes, <img src="https://latex.codecogs.com/png.latex?E=25%7B,%7D570"> edges) with deep transitive structures intentionally designed to break naive pathing (chains of 4-5 hops with all possible shortcuts). Then we ran our GPU kernel against the CPU ground truth (<code>networkx.transitive_reduction</code>):</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Metric</th>
+<th>CPU (<code>networkx</code>)</th>
+<th>GPU (PyTorch Sparse)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Edges kept</strong></td>
+<td>2,325</td>
+<td>2,325</td>
+</tr>
+<tr class="even">
+<td><strong>Time</strong></td>
+<td>0.259s</td>
+<td>0.149s</td>
+</tr>
+</tbody>
+</table>
+<p>The result was bit-identical. The math was proven correct on synthetic data.</p>
+</section>
+<section id="yeast-benchmark-vs-miniasm-reality-check" class="level3">
+<h3 class="anchored" data-anchor-id="yeast-benchmark-vs-miniasm-reality-check">Yeast Benchmark vs Miniasm: Reality Check</h3>
+<p>Then we ran it on real data, the yeast 30× overlaps generated by <code>minimap2</code>, and things got interesting.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Metric</th>
+<th>CPU (<code>miniasm</code>)</th>
+<th>GPU (PyTorch Sparse)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Raw Input Overlaps</strong></td>
+<td>21,591</td>
+<td>21,591</td>
+</tr>
+<tr class="even">
+<td><strong>Pre-Reduction Edges</strong></td>
+<td>1,021</td>
+<td>21,591</td>
+</tr>
+<tr class="odd">
+<td><strong>Edges Dropped</strong></td>
+<td>843</td>
+<td>21,102</td>
+</tr>
+<tr class="even">
+<td><strong>Final Spanning Edges</strong></td>
+<td>178</td>
+<td>489</td>
+</tr>
+</tbody>
+</table>
+<p>The GPU was far more aggressive because it operated on the <strong>raw</strong> adjacency matrix without any prior containment filtering. <code>miniasm</code> first removes contained reads (coordinate-based matching on the CPU), which strips the graph from 21,591 to 1,021 edges <em>before</em> it even begins transitive reduction. Our GPU algorithm just saw the full dense hairball and mathematically pruned everything it could find.</p>
+<p>Was it correct? Mathematically, yes. Was it useful? Not quite yet.</p>
+<hr>
+</section>
+</section>
+<section id="step-2-the-error-correction-problem-a-big-detour" class="level2">
+<h2 class="anchored" data-anchor-id="step-2-the-error-correction-problem-a-big-detour">Step 2: The Error-Correction Problem (A Big Detour)</h2>
+<p>When we tried to actually <em>assemble</em> from the GPU-reduced edges, things went sideways.</p>
+<p>Even at 99% read accuracy, the remaining 1% of errors bake massive error bubbles and spurious tips directly into the sparse adjacency matrix. The downstream layout engine either crashed or produced a 117 MB hairball assembly, orders of magnitude worse than what <code>miniasm</code> produces.</p>
+<p>So, we needed clean reads, which will be the subject of the next post. Traditional assemblers like <code>hifiasm</code> spend enormous CPU time on error correction before they even touch the graph.</p>
+<p>Since our deep learning error-correction pipeline was not ready yet, we sidestepped the problem by simulating 100% accurate reads using PBSIM3 with <code>--accuracy-mean 1.00</code>. This represents the exact output of a hypothetical perfect error corrector: zero sequencing errors and pure structural signal.</p>
+<p>With these clean reads:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">pbsim</span> <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--strategy</span> wgs <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--method</span> errhmm <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--depth</span> 30.0 <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--length-mean</span> 15000 <span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">\</span></span>
+<span id="cb1-2">      <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--accuracy-mean</span> 1.00 <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--genome</span> yeast_clean.fa <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--prefix</span> yeast_100pct</span>
+<span id="cb1-3"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">minimap2</span> <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">-x</span> ava-pb <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">-t</span> 20 yeast_100pct_full.fq.gz yeast_100pct_full.fq.gz <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;</span> yeast_100pct_ava.paf</span>
+<span id="cb1-4"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">python3</span> scripts/filter_containments.py yeast_100pct_ava.paf yeast_100pct_filtered.paf</span>
+<span id="cb1-5"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">python3</span> scripts/gpu_transitive_reduction.py <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--paf</span> yeast_100pct_filtered.paf <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--out</span> yeast_100pct_reduced.paf</span></code></pre></div></div>
+<p>We were skipping that step entirely and expecting the graph math to somehow compensate. It could not.</p>
+<p>The GPU transitive reduction achieved:</p>
+<ul>
+<li><strong>N50</strong>: 97,312 bp (2x better than the uncorrected run)</li>
+<li><strong>Total assembled length</strong>: 18.9 MB</li>
+<li><strong>Transitive edges pruned</strong>: 13,633 redundant paths cleanly removed</li>
+</ul>
+<p>This confirmed the structural math was sound. But the N50 was still far short of the CPU engine’s <strong>812 kb</strong>. Something else was wrong.</p>
+<hr>
+</section>
+<section id="step-3-the-min-plus-tropical-semiring-fixing-the-algebra" class="level2">
+<h2 class="anchored" data-anchor-id="step-3-the-min-plus-tropical-semiring-fixing-the-algebra">Step 3: The Min-Plus Tropical Semiring (Fixing the Algebra)</h2>
+<p>We traced the N50 gap to a fundamental problem with boolean algebra in repetitive genomes.</p>
+<p>Standard boolean matrix multiplication treats all edges as equal. A 500 bp overlap and a 15,000 bp overlap are both just <code>1</code> in the adjacency matrix. But in transitive reduction, path length matters. Miniasm’s CPU algorithm uses a “fuzz” parameter: an edge <img src="https://latex.codecogs.com/png.latex?A%20%5Crightarrow%20C"> is only transitive if the sum of the intermediate edges (<img src="https://latex.codecogs.com/png.latex?A%20%5Crightarrow%20B%20+%20B%20%5Crightarrow%20C">) is within a distance threshold.</p>
+<p>Our boolean GPU kernel was ignoring distance entirely, which caused it to shatter repetitive genomes by pruning edges that were <em>topologically</em> but not <em>metrically</em> transitive. In other words, it saw a mathematical shortcut through a repeat region and deleted the longer direct edge, even though that “shortcut” was biologically meaningless because it jumped through a completely different genomic region.</p>
+<p>We upgraded to a <strong>Min-Plus Tropical Semiring</strong>, where matrix “multiplication” computes <img src="https://latex.codecogs.com/png.latex?%5Cmin"> instead of <img src="https://latex.codecogs.com/png.latex?%5Csum"> and “addition” is <img src="https://latex.codecogs.com/png.latex?+"> instead of <img src="https://latex.codecogs.com/png.latex?%5Ctimes">. In PyTorch, we implemented this using <code>scatter_reduce_</code> with <code>amin</code>.</p>
+<p>The Min-Plus engine correctly preserved hundreds of essential repetitive structural paths that the boolean logic had wrongfully deleted. N50 improved from 97 kb to 114 kb. But 114 kb was still far from 812 kb.</p>
+<hr>
+</section>
+<section id="step-4-the-bidirected-tensor-discovery-the-root-cause" class="level2">
+<h2 class="anchored" data-anchor-id="step-4-the-bidirected-tensor-discovery-the-root-cause">Step 4: The Bidirected Tensor Discovery (The Root Cause)</h2>
+<p>This was the breakthrough in understanding, and also the most frustrating one, because it revealed a fundamental architectural limitation we could not easily fix.</p>
+<p>A biological overlap graph is inherently <strong>bidirected</strong>: every read has a forward (+) and reverse complement (−) node. In the 2N × 2N adjacency matrix that <code>miniasm</code> uses internally, each overlap creates <strong>two</strong> directed arcs:</p>
+<pre><code>U = q_id * 2 + u_dir    →    V = t_id * 2 + v_dir
+V' = V ^ 1              →    U' = U ^ 1</code></pre>
+<p>Our GPU tensor had been modelling the graph using simple sequence IDs, effectively treating it as <strong>undirected</strong>. In an undirected graph, if Read A overlaps Read B and Read C overlaps Read B, the tensor detects a mathematical transitive path <img src="https://latex.codecogs.com/png.latex?A%20%5Cto%20B%20%5Cto%20C">.</p>
+<p>But biologically, A might connect to the 3’ end of <img src="https://latex.codecogs.com/png.latex?B%5E+"> while C connects to the 3’ end of <img src="https://latex.codecogs.com/png.latex?B%5E-">. In a strictly bidirected tensor, these edges live on <strong>different nodes</strong> (<img src="https://latex.codecogs.com/png.latex?B%5E+"> vs <img src="https://latex.codecogs.com/png.latex?B%5E-">), so no transitive path exists between A and C.</p>
+<p>Because our GPU tensor was strand-agnostic, it was hallucinating millions of biologically impossible transitive paths through nodes, causing the Min-Plus algorithm to erroneously prune true structural edges.</p>
+<p>So, in the next step, we used the full bidirected 2N × 2N representation with explicit strand-aware arc computation, symmetric twin enforcement (<code>V' → U'</code> whenever <code>U → V</code> is deleted), and all four of miniasm’s graph-cleaning phases:</p>
+<ol type="1">
+<li><strong>Strict Transitive Reduction</strong> (fuzz-aware, distance-weighted)</li>
+<li><strong>Tip Clipping</strong> (dead-end path removal up to <code>max_ext</code> hops)</li>
+<li><strong>Bubble Popping</strong> (bifurcation/reconvergence detection via BFS)</li>
+<li><strong>Short Overlap Removal</strong> (span-ratio based filtering)</li>
+</ol>
+<p>This was no longer a cute matrix multiply. It was a faithful port of miniasm’s entire state machine into PyTorch tensors.</p>
+<hr>
+</section>
+<section id="step-5-the-edge-only-gnn-high-precision-shattered-assembly" class="level2">
+<h2 class="anchored" data-anchor-id="step-5-the-edge-only-gnn-high-precision-shattered-assembly">Step 5: The Edge-Only GNN (High Precision, Shattered Assembly)</h2>
+<p>With the transitive reduction journey behind us, we pivoted to a learning-based approach. Instead of trying to replicate miniasm’s exact heuristic cascade, why not let a neural network learn the whole thing end-to-end?</p>
+<p>We trained a standard GNN to predict the survival probability of each overlap:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AP_%7Bedge%7D(u,%20v)%20=%20%5Csigma%5Cleft(%20%5Ctext%7BMLP%7D_%7Bedge%7D(%20%5Cmathbf%7Bh%7D_u,%20%5Cmathbf%7Bh%7D_v,%20%5Cmathbf%7Be%7D_%7Bu,v%7D%20)%20%5Cright)%0A"></p>
+<p>where <img src="https://latex.codecogs.com/png.latex?%5Cmathbf%7Bh%7D_u"> and <img src="https://latex.codecogs.com/png.latex?%5Cmathbf%7Bh%7D_v"> are learned node embeddings propagated through 3 message-passing layers, and <img src="https://latex.codecogs.com/png.latex?%5Cmathbf%7Be%7D_%7Bu,v%7D"> are the 10-dimensional geometric features of the overlap (distance, span, matching bases, block length, mapping quality, identity, and normalised coordinate ratios).</p>
+<p>The model achieved extremely high precision, but the assembly fragmented. The N50 plummeted.</p>
+<section id="the-mathematical-flaw" class="level3">
+<h3 class="anchored" data-anchor-id="the-mathematical-flaw">The Mathematical Flaw</h3>
+<p>By only classifying edges, the network successfully deleted spurious overlaps, but it ignored the biological reality of the reads themselves. Reads that were deeply contained or chimeric lost <em>all</em> their valid edges, leaving them as “dead-end” floating nodes in the graph. When the layout algorithm encountered these dead-ends, it assumed the contig had terminated, artificially fracturing the assembly path.</p>
+<p>This was a classic case of optimising the wrong objective. The edge-level precision was great, but the graph-level contiguity was destroyed.</p>
+<hr>
+</section>
+</section>
+<section id="step-6-the-dual-headed-gnn-the-one-that-worked" class="level2">
+<h2 class="anchored" data-anchor-id="step-6-the-dual-headed-gnn-the-one-that-worked">Step 6: The Dual-Headed GNN (The One That Worked)</h2>
+<p>The fix was conceptually simple but architecturally significant: structural topology is fundamentally <strong>joint</strong>. A valid edge cannot exist between invalid nodes.</p>
+<p>We architected a <strong>Dual-Headed GNN</strong> (<code>DualHeadedGNN</code> in <code>train_gnn.py</code>) with 3 message-passing layers (each with its own <code>msg_mlp</code> and <code>update_mlp</code>) and two classification heads that simultaneously predict:</p>
+<p><strong>1. Node Head:</strong> whether a read should survive (not contained, not chimeric):</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AP_%7Bnode%7D(u)%20=%20%5Csigma%5Cleft(%20%5Ctext%7BMLP%7D_%7Bnode%7D(%20%5Cmathbf%7Bh%7D_u%20)%20%5Cright)%0A"></p>
+<p><strong>2. Edge Head:</strong> whether an overlap is structurally valid:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AP_%7Bedge%7D(u,%20v)%20=%20%5Csigma%5Cleft(%20%5Ctext%7BMLP%7D_%7Bedge%7D(%20%5Cmathbf%7Bh%7D_u,%20%5Cmathbf%7Bh%7D_v,%20%5Cmathbf%7Be%7D_%7Bu,v%7D%20)%20%5Cright)%0A"></p>
+<section id="ground-truth-generation" class="level3">
+<h3 class="anchored" data-anchor-id="ground-truth-generation">Ground Truth Generation</h3>
+<p>To train this network, we needed labels. We built the training set, which takes two inputs: 1. The raw PAF overlaps from <code>minimap2</code> (noisy, 29,560 edges). 2. The golden GFA unitig file from <code>miniasm</code> (the CPU gold standard).</p>
+<p>The script parses the GFA’s <code>a</code>-records (which list the reads in each unitig and their strand orientations), traces the consecutive read pairs, maps them back to bidirected arc coordinates (<img src="https://latex.codecogs.com/png.latex?U%20=%20%5Ctext%7Bread%5C_id%7D%20%5Ctimes%202%20+%20%5Ctext%7Bdir%7D">), and creates binary labels for both nodes and edges. Every edge in the raw graph gets a <code>1</code> if it appears in the golden assembly, <code>0</code> otherwise. Same for nodes.</p>
+</section>
+<section id="the-topological-masking-function" class="level3">
+<h3 class="anchored" data-anchor-id="the-topological-masking-function">The Topological Masking Function</h3>
+<p>During inference, instead of naively thresholding edges, we enforce a strict <strong>topological mask</strong>. An edge is only retained if <strong>both</strong> of its connecting nodes survive <em>and</em> the edge itself is classified as valid:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7BMask%7D_%7Bfinal%7D%20=%20%5Cbig%5B%20P_%7Bnode%7D(u)%20%5Cge%200.5%20%5Cbig%5D%20%5Cland%20%5Cbig%5B%20P_%7Bnode%7D(v)%20%5Cge%200.5%20%5Cbig%5D%20%5Cland%20%5Cbig%5B%20P_%7Bedge%7D(u,%20v)%20%5Cge%200.5%20%5Cbig%5D%0A"></p>
+<p>This boolean intersection is natively vectorised in a PyTorch implementation, executing across millions of edges in milliseconds. And because node validity is checked first, we never get the “dead-end contig” problem that killed the edge-only GNN.</p>
+<p>After the GNN mask is applied, we run the surviving edges through the bidirected topological cleanup cascade (TR → tips → bubbles → short overlaps) for mathematical completeness.</p>
+</section>
+<section id="loss-formulation" class="level3">
+<h3 class="anchored" data-anchor-id="loss-formulation">Loss Formulation</h3>
+<p>Because false negatives (deleting a true edge) irrevocably fracture an assembly, and you cannot stitch a broken contig back together, we heavily weighted the positive class. We used joint Weighted Binary Cross Entropy with <code>pos_weight</code> set to <img src="https://latex.codecogs.com/png.latex?2%5Ctimes"> the class imbalance ratio:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cmathcal%7BL%7D_%7Btotal%7D%20=%20%5Cmathcal%7BL%7D_%7BBCE%5C_node%7D(%5Cmathbf%7Bw%7D_%7Bnode%7D)%20+%20%5Cmathcal%7BL%7D_%7BBCE%5C_edge%7D(%5Cmathbf%7Bw%7D_%7Bedge%7D)%0A"></p>
+<hr>
+</section>
+</section>
+<section id="parity-the-results" class="level2">
+<h2 class="anchored" data-anchor-id="parity-the-results">100% Parity: The Results</h2>
+<p>We trained this Dual-Headed GNN on ground-truth decisions extracted from <code>miniasm</code> across a highly complex yeast dataset.</p>
+<p>The raw input generated by <code>minimap2</code> contained a massive <strong>29,560-edge</strong> noisy graph. During inference, the GNN executed the forward pass and applied the topological masking function, perfectly stripping the noise.</p>
+<p>The GPU outputted exactly <strong>4,920 edges</strong>, a 100% precision and 100% recall match with the gold-standard CPU heuristic filtering.</p>
+<hr>
+</section>
+<section id="the-future-scaling-to-the-mammalian-era" class="level2">
+<h2 class="anchored" data-anchor-id="the-future-scaling-to-the-mammalian-era">The Future: Scaling to the Mammalian Era</h2>
+<p>The yeast benchmark proves the concept: rigid, serial C-heuristics can be successfully replaced by vectorised deep learning matrices without sacrificing a single base pair of contiguity. But yeast is 12 Mb. The human genome is 3 Gb, 250× larger.</p>
+<p>The gap between our prototype and hifiasm is enormous, but it is entirely algorithmic. The bottleneck is graph cleaning, which is exactly what the GNN replaces. And unlike hifiasm’s CPU heuristics, our tensor operations scale linearly across thousands of CUDA cores.</p>
+<p>Two architectural requirements must be met for a production-tier GPU assembler: 1. <strong>Bidirected Sparse Tensors</strong>: The adjacency matrix must be 2N × 2N to strictly separate forward and reverse sequence strands. 2. <strong>Min-Plus Tropical Semirings</strong>: Transitive reduction must use distance-weighted algebra, not unweighted boolean multiplication.</p>
+<p>The era of deep-learning-driven assembly is here.</p>
+<hr>
+</section>
+<section id="references-literature-context" class="level2">
+<h2 class="anchored" data-anchor-id="references-literature-context">References &amp; Literature Context</h2>
+<p>Our Dual-Headed architecture builds upon an emerging body of research that reframes genome assembly graphs as deep learning problems:</p>
+<ol type="1">
+<li><strong>GNNome (2021):</strong> One of the pioneering frameworks that formulated haploid genome assembly as a supervised binary edge classification task, proving that Graph Convolutional Networks (GCNs) could learn true adjacencies from simulated overlap graphs.</li>
+<li><strong>COGRAM:</strong> Demonstrated the feasibility of using lightweight GCNs to score and classify edges on k-mer overlap graphs.</li>
+<li><strong>DipGNNome (2023):</strong> Extended the GNNome architecture to diploid genome assembly, highlighting the power of GNNs in haplotype-aware graph processing.</li>
+</ol>
+<p>Our <strong>Dual-Headed GNN</strong> advances this literature by explicitly solving the “dead-end contig” fragmentation problem through joint node-and-edge classification, allowing the pipeline to execute topological masking that perfectly mirrors the structural integrity of C-based heuristics at a fraction of the serialised compute time.</p>
+
+
+</section>
+
+ ]]></description>
+  <guid>https://eniktab.github.io/computational-notes/posts/2026/from-heuristics-to-deep-learning/</guid>
+  <pubDate>Sun, 24 May 2026 14:00:00 GMT</pubDate>
+</item>
+</channel>
+</rss>
