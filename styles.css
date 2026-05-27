@@ -99,7 +99,7 @@ main.content,
   margin-right: 0;
 }
 
-/* ============ TITLE BLOCK (journal-style) ============ */
+/* ============ TITLE BLOCK ============ */
 #title-block-header.quarto-title-block.default {
   position: relative;
   margin: 0 0 2.5rem 0;
@@ -108,25 +108,7 @@ main.content,
   border-bottom: 1px solid var(--rule);
 }
 
-#title-block-header.quarto-title-block.default::before {
-  display: none;
-}
-
-/* The eyebrow only renders on pages that have an actual Published date,
-   i.e., real articles — not the home, blog index, or about page. */
-#title-block-header.quarto-title-block.default:has(.quarto-title-meta-heading)::before {
-  content: "Research Article";
-  display: block;
-  margin-bottom: 1rem;
-  font-family: var(--sans);
-  font-weight: 700;
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-/* Hide the empty meta block on non-article pages so it doesn't add whitespace. */
+/* Hide the empty meta block on pages without a Published date so it doesn't add whitespace. */
 #title-block-header.quarto-title-block.default:not(:has(.quarto-title-meta-heading)) .quarto-title-meta {
   display: none;
 }
