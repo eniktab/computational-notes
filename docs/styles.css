@@ -135,28 +135,70 @@ h1.title {
 .quarto-title-meta-heading,
 .quarto-title-meta-contents {
   font-family: var(--sans);
-  font-size: 0.86rem;
-  color: var(--muted);
 }
 
-.quarto-title-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, max-content));
-  gap: 0.6rem 1.6rem;
-  margin-top: 0.6rem;
+/* Specificity must match Quarto bootstrap's `#title-block-header.quarto-title-block.default .quarto-title-meta`
+   rule to override its `display: grid; grid-template-columns: repeat(2, 1fr)`. */
+#title-block-header.quarto-title-block.default .quarto-title-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-top: 0.9rem;
 }
 
 .quarto-title-meta-heading {
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--ink-soft);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
 }
 
 .quarto-title-meta-contents {
   font-size: 0.92rem;
   color: var(--ink-soft);
+  margin: 0;
+}
+
+.quarto-title-meta-contents p {
+  margin: 0;
+}
+
+/* The first meta block is the Author. Suppress the redundant "Author"
+   label and present the name itself as the byline. */
+.quarto-title-meta > div:first-child .quarto-title-meta-heading {
+  display: none;
+}
+
+.quarto-title-meta > div:first-child .quarto-title-meta-contents p {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.005em;
+}
+
+/* Subsequent meta rows (Published, etc.) render inline: LABEL · value */
+.quarto-title-meta > div:not(:first-child) {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.quarto-title-meta > div:not(:first-child) .quarto-title-meta-heading::after {
+  content: "·";
+  display: inline-block;
+  margin-left: 0.4rem;
+  color: var(--rule);
+}
+
+.quarto-title-meta > div:not(:first-child) .quarto-title-meta-contents,
+.quarto-title-meta > div:not(:first-child) .quarto-title-meta-contents p {
+  font-size: inherit;
+  color: var(--muted);
 }
 
 /* ============ HEADINGS ============ */
