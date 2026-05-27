@@ -465,9 +465,9 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="step-1-gpu-sparse-boolean-transitive-reduction-the-first-aha">Step 1: GPU Sparse Boolean Transitive Reduction (The First “Aha”)</h2>
 <p>Our first move was to attack transitive reduction directly with pure matrix algebra. The math is elegant:</p>
 <p>Let <span class="math inline">\(M\)</span> be the adjacency matrix of a Directed Acyclic Graph. The transitive closure <span class="math inline">\(M^*\)</span> can be iteratively computed by <span class="math inline">\(M_k = M_{k-1} \times M\)</span>, where <span class="math inline">\(M_k\)</span> contains all paths of exactly length <span class="math inline">\(k\)</span>. The fully reduced graph is:</p>
-<p><span class="math display">\[
+<p><span id="eq-boolean-tr"><span class="math display">\[
 M_{reduced} = M \setminus \left( M \cap \bigcup_{k=2}^{\infty} M_k \right)
-\]</span></p>
+\tag{1}\]</span></span></p>
 <p>We implemented this entirely in <code>torch.sparse_coo_tensor</code>, with no Python loops and no CPU dispatch overhead, just raw matrix multiplications on the GPU.</p>
 <section id="the-smoke-test-bit-identical-to-networkx" class="level3">
 <h3 class="anchored" data-anchor-id="the-smoke-test-bit-identical-to-networkx">The Smoke Test: Bit-Identical to NetworkX</h3>
@@ -588,9 +588,9 @@ V' = V ^ 1              →    U' = U ^ 1</code></pre>
 <h2 class="anchored" data-anchor-id="step-5-the-edge-only-gnn-high-precision-shattered-assembly">Step 5: The Edge-Only GNN (High Precision, Shattered Assembly)</h2>
 <p>With the transitive reduction journey behind us, we pivoted to a learning-based approach. Instead of trying to replicate miniasm’s exact heuristic cascade, why not let a neural network learn the whole thing end-to-end?</p>
 <p>We trained a standard GNN to predict the survival probability of each overlap:</p>
-<p><span class="math display">\[
+<p><span id="eq-edge-only"><span class="math display">\[
 P_{edge}(u, v) = \sigma\left( \text{MLP}_{edge}( \mathbf{h}_u, \mathbf{h}_v, \mathbf{e}_{u,v} ) \right)
-\]</span></p>
+\tag{2}\]</span></span></p>
 <p>where <span class="math inline">\(\mathbf{h}_u\)</span> and <span class="math inline">\(\mathbf{h}_v\)</span> are learned node embeddings propagated through 3 message-passing layers, and <span class="math inline">\(\mathbf{e}_{u,v}\)</span> are the 10-dimensional geometric features of the overlap (distance, span, matching bases, block length, mapping quality, identity, and normalised coordinate ratios).</p>
 <p>The model achieved extremely high precision, but the assembly fragmented. The N50 plummeted.</p>
 <section id="the-mathematical-flaw" class="level3">
@@ -605,13 +605,13 @@ P_{edge}(u, v) = \sigma\left( \text{MLP}_{edge}( \mathbf{h}_u, \mathbf{h}_v, \ma
 <p>The fix was conceptually simple but architecturally significant: structural topology is fundamentally <strong>joint</strong>. A valid edge cannot exist between invalid nodes.</p>
 <p>We architected a <strong>Dual-Headed GNN</strong> (<code>DualHeadedGNN</code> in <code>train_gnn.py</code>) with 3 message-passing layers (each with its own <code>msg_mlp</code> and <code>update_mlp</code>) and two classification heads that simultaneously predict:</p>
 <p><strong>1. Node Head:</strong> whether a read should survive (not contained, not chimeric):</p>
-<p><span class="math display">\[
+<p><span id="eq-node-head"><span class="math display">\[
 P_{node}(u) = \sigma\left( \text{MLP}_{node}( \mathbf{h}_u ) \right)
-\]</span></p>
+\tag{3}\]</span></span></p>
 <p><strong>2. Edge Head:</strong> whether an overlap is structurally valid:</p>
-<p><span class="math display">\[
+<p><span id="eq-edge-head"><span class="math display">\[
 P_{edge}(u, v) = \sigma\left( \text{MLP}_{edge}( \mathbf{h}_u, \mathbf{h}_v, \mathbf{e}_{u,v} ) \right)
-\]</span></p>
+\tag{4}\]</span></span></p>
 <section id="ground-truth-generation" class="level3">
 <h3 class="anchored" data-anchor-id="ground-truth-generation">Ground Truth Generation</h3>
 <p>To train this network, we needed labels. We built the training set, which takes two inputs: 1. The raw PAF overlaps from <code>minimap2</code> (noisy, 29,560 edges). 2. The golden GFA unitig file from <code>miniasm</code> (the CPU gold standard).</p>
@@ -620,18 +620,18 @@ P_{edge}(u, v) = \sigma\left( \text{MLP}_{edge}( \mathbf{h}_u, \mathbf{h}_v, \ma
 <section id="the-topological-masking-function" class="level3">
 <h3 class="anchored" data-anchor-id="the-topological-masking-function">The Topological Masking Function</h3>
 <p>During inference, instead of naively thresholding edges, we enforce a strict <strong>topological mask</strong>. An edge is only retained if <strong>both</strong> of its connecting nodes survive <em>and</em> the edge itself is classified as valid:</p>
-<p><span class="math display">\[
+<p><span id="eq-topological-mask"><span class="math display">\[
 \text{Mask}_{final} = \big[ P_{node}(u) \ge 0.5 \big] \land \big[ P_{node}(v) \ge 0.5 \big] \land \big[ P_{edge}(u, v) \ge 0.5 \big]
-\]</span></p>
+\tag{5}\]</span></span></p>
 <p>This boolean intersection is natively vectorised in a PyTorch implementation, executing across millions of edges in milliseconds. And because node validity is checked first, we never get the “dead-end contig” problem that killed the edge-only GNN.</p>
 <p>After the GNN mask is applied, we run the surviving edges through the bidirected topological cleanup cascade (TR → tips → bubbles → short overlaps) for mathematical completeness.</p>
 </section>
 <section id="loss-formulation" class="level3">
 <h3 class="anchored" data-anchor-id="loss-formulation">Loss Formulation</h3>
 <p>Because false negatives (deleting a true edge) irrevocably fracture an assembly, and you cannot stitch a broken contig back together, we heavily weighted the positive class. We used joint Weighted Binary Cross Entropy with <code>pos_weight</code> set to <span class="math inline">\(2\times\)</span> the class imbalance ratio:</p>
-<p><span class="math display">\[
+<p><span id="eq-joint-loss"><span class="math display">\[
 \mathcal{L}_{total} = \mathcal{L}_{BCE\_node}(\mathbf{w}_{node}) + \mathcal{L}_{BCE\_edge}(\mathbf{w}_{edge})
-\]</span></p>
+\tag{6}\]</span></span></p>
 <hr>
 </section>
 </section>

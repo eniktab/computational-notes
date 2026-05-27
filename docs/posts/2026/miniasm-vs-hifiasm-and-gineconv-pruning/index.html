@@ -495,48 +495,48 @@ window.Quarto = {
 <section id="transitive-reduction-formalised" class="level3">
 <h3 class="anchored" data-anchor-id="transitive-reduction-formalised">1.3 Transitive reduction, formalised</h3>
 <p><strong>Definition (Myers 2005).</strong> Given a directed graph <span class="math inline">\(G\)</span> with edge lengths <span class="math inline">\(\ell\)</span> and a tolerance <span class="math inline">\(\epsilon\)</span>, the arc <span class="math inline">\(u \to w\)</span> is <strong>transitive at tolerance <span class="math inline">\(\epsilon\)</span></strong> if there is a <span class="math inline">\(v \ne u, w\)</span> with <span class="math inline">\(u \to v\)</span> and <span class="math inline">\(v \to w\)</span> present and</p>
-<p><span class="math display">\[
+<p><span id="eq-myers-fuzz"><span class="math display">\[
 \bigl|\, \ell(u\!\to\!v) + \ell(v\!\to\!w) \;-\; \ell(u\!\to\!w) \,\bigr| \;\le\; \epsilon.
-\]</span></p>
+\tag{1}\]</span></span></p>
 <p>The <strong>transitive reduction</strong> <span class="math inline">\(G_r\)</span> is obtained by removing every transitive arc. The implementation in miniasm (and its byte-identical fork in hifiasm) computes this in expected near-linear time per node by sorting outgoing arcs by length and using a length budget</p>
-<p><span class="math display">\[
+<p><span id="eq-length-budget"><span class="math display">\[
 L = \ell\bigl(av_{n_v-1}\bigr) + \texttt{fuzz}
-\]</span></p>
+\tag{2}\]</span></span></p>
 <p>, then sweeping: an arc to <span class="math inline">\(w\)</span> gets marked transitive iff some <span class="math inline">\(w\)</span>-out-arc reaches a sibling within the budget. After every pass the assembler calls <code>asg_cleanup()</code> and <code>asg_symm()</code> to symmetrise the deletion across the twin arcs.</p>
 <p>In sparse-matrix form the boolean version is</p>
-<p><span class="math display">\[
+<p><span id="eq-boolean-tr"><span class="math display">\[
 M_r \;=\; M \;\setminus\; \Bigl( M \cap \bigcup_{k=2}^{\infty} M^{(k)} \Bigr),
 \qquad M^{(k)} = M^{(k-1)} \,\odot\, M,
-\]</span></p>
+\tag{3}\]</span></span></p>
 <p>where <span class="math inline">\(\odot\)</span> is boolean matrix multiplication. Without a length budget this drops <em>every</em> topologically transitive arc — which, as we discovered the hard way in Phase 1 below, shatters repetitive regions in real genomes: shortcuts through repeat copies close a triangle topologically but the arc lengths do not satisfy Myers’s <span class="math inline">\(\epsilon\)</span>-tolerance, so deleting the longer direct arc is biologically meaningless.</p>
 </section>
 <section id="the-tropical-min-plus-semiring" class="level3">
 <h3 class="anchored" data-anchor-id="the-tropical-min-plus-semiring">1.4 The tropical (min-plus) semiring</h3>
 <p>To enforce Myers’s fuzz tolerance as algebra rather than as a control-flow predicate, replace <span class="math inline">\((\times, +)\)</span> with the <strong>min-plus tropical semiring</strong> <span class="math inline">\(\mathbb{T} = (\mathbb{R} \cup \{+\infty\}, \min, +)\)</span>:</p>
-<p><span class="math display">\[
+<p><span id="eq-tropical-mult"><span class="math display">\[
 (M \otimes M)_{uw} \;=\; \min_{v}\!\bigl(\, M_{uv} + M_{vw} \,\bigr),
-\]</span></p>
+\tag{4}\]</span></span></p>
 <p>with <span class="math inline">\(M_{uv} = \ell(u\!\to\!v)\)</span> if the arc exists and <span class="math inline">\(+\infty\)</span> otherwise. An arc <span class="math inline">\(u \to w\)</span> is transitive at tolerance <span class="math inline">\(\epsilon\)</span> iff</p>
-<p><span class="math display">\[
+<p><span id="eq-tropical-transitive"><span class="math display">\[
 (M \otimes M)_{uw} \;\le\; \ell(u\!\to\!w) + \epsilon.
-\]</span></p>
+\tag{5}\]</span></span></p>
 <p>This is the exact algebraic form of the inner loop in <code>asg_arc_del_trans</code>. We implemented it with <code>scatter_reduce_(..., reduce='amin')</code> over the COO representation.</p>
 </section>
 <section id="the-weisfeilerlehman-test-message-passing-and-gin" class="level3">
 <h3 class="anchored" data-anchor-id="the-weisfeilerlehman-test-message-passing-and-gin">1.5 The Weisfeiler–Lehman test, message passing, and GIN</h3>
 <p>All modern GNNs fit Gilmer et al.’s (2017) <strong>message-passing</strong> template — at each step <span class="math inline">\(t\)</span> a node updates its embedding from its previous state and an aggregation over its neighbours:</p>
-<p><span class="math display">\[
+<p><span id="eq-mpnn"><span class="math display">\[
 \mathbf{h}_u^{(t+1)} \;=\; \phi\Bigl(\mathbf{h}_u^{(t)},\;\; \bigoplus_{v \in \mathcal{N}(u)} \psi\bigl(\mathbf{h}_v^{(t)}, \mathbf{e}_{uv}\bigr)\Bigr),
-\]</span></p>
+\tag{6}\]</span></span></p>
 <p>with <span class="math inline">\(\oplus\)</span> a permutation-invariant pool. Different architectures instantiate <span class="math inline">\(\phi\)</span>, <span class="math inline">\(\psi\)</span>, <span class="math inline">\(\oplus\)</span> differently: <strong>GCN</strong> (Kipf &amp; Welling 2017) uses a symmetrically-normalised mean and ignores edge features; <strong>GraphSAGE</strong> (Hamilton et al.&nbsp;2017) concatenates a separate node vector with a pooled neighbour vector; <strong>GAT</strong> (Veličković et al.&nbsp;2018) and its corrected variant <strong>GATv2</strong> (Brody et al.&nbsp;2022) replace <span class="math inline">\(\oplus\)</span> with attention.</p>
 <p>Xu et al.&nbsp;(2019) proved that the <strong>discriminative power</strong> of any message-passing GNN is upper-bounded by the 1-dimensional <strong>Weisfeiler–Lehman (1-WL)</strong> graph-isomorphism test, and that <strong>GIN</strong> (Graph Isomorphism Network) attains that bound when <span class="math inline">\(\oplus\)</span> is <code>sum</code> and <span class="math inline">\(\phi\)</span> is a multi-layer MLP:</p>
-<p><span class="math display">\[
+<p><span id="eq-gin"><span class="math display">\[
 \mathbf{h}_u^{(t+1)} \;=\; \mathrm{MLP}\Bigl((1+\eta)\,\mathbf{h}_u^{(t)} \;+\; \sum_{v \in \mathcal{N}(u)} \mathbf{h}_v^{(t)}\Bigr).
-\]</span></p>
+\tag{7}\]</span></span></p>
 <p>The <strong>GINE</strong> variant (Hu et al.&nbsp;2020, “Strategies for pre-training graph neural networks”) generalises GIN to incorporate edge features into every aggregation step:</p>
-<p><span class="math display">\[
+<p><span id="eq-gine"><span class="math display">\[
 \mathbf{h}_u^{(t+1)} \;=\; \mathrm{MLP}\Bigl((1+\eta)\,\mathbf{h}_u^{(t)} \;+\; \sum_{v \in \mathcal{N}(u)} \mathrm{ReLU}\bigl(\mathbf{h}_v^{(t)} + \mathbf{e}_{uv}\bigr)\Bigr).
-\]</span></p>
+\tag{8}\]</span></span></p>
 <p>For string-graph cleaning the edge features carry the overlap geometry (length, identity, span, etc.); GINE’s <span class="math inline">\(\mathrm{ReLU}(\mathbf{h}_v + \mathbf{e}_{uv})\)</span> injection at <em>every</em> layer — rather than only at the final readout, as in vanilla SAGE — is what lets the network distinguish transitive arcs from tips from bubbles in a single forward pass. GAT-family attention uses edge features only as inputs to attention coefficients, which in our setting (Wave 2b in §4.2 below) was strictly less stable than direct injection into the aggregated signal. Strictly more expressive frameworks exist — Corso et al.’s <strong>PNA</strong> (Principal Neighbourhood Aggregation, 2020) replaces the sum with a learned combination of multiple aggregators, and graph transformers (Dwivedi &amp; Bresson 2021) extend the WL bound at higher cost — but we did not need them.</p>
 <hr>
 </section>
@@ -743,17 +743,17 @@ M_r \;=\; M \;\setminus\; \Bigl( M \cap \bigcup_{k=2}^{\infty} M^{(k)} \Bigr),
 <p><strong>Lesson 5.</strong> Miniasm’s default parameters are a precariously-tuned local optimum. The “over-pruned” row shows that one extra tip-and-bubble round on a small repetitive genome collapses total length by 4.7× and N50 by 4.7×. The CPU cascade works because it happens to stop just <em>before</em> this catastrophe, not because the cascade itself is robust.</p>
 </blockquote>
 <p><strong>Step 5 — edge-only GNN.</strong> A 3-layer message-passing network classifying each arc:</p>
-<p><span class="math display">\[
+<p><span id="eq-edge-only-gnn"><span class="math display">\[
 P_\text{edge}(u, v) = \sigma\!\bigl(\,\mathrm{MLP}\bigl([\mathbf{h}_u, \mathbf{h}_v, \mathbf{e}_{uv}]\bigr)\bigr).
-\]</span></p>
+\tag{9}\]</span></span></p>
 <p>Edge precision was excellent; assembly contiguity was destroyed. Reads with no surviving incident arcs stayed in the graph as zero-degree islands, and the layout engine terminated contigs at every dead-end.</p>
 <blockquote class="blockquote">
 <p><strong>Lesson 6.</strong> Edge classification alone is the wrong objective. The downstream layout depends on <em>node survival</em>; classifying edges without simultaneously deciding which reads to keep produces a graph that looks clean by per-arc precision but is structurally broken.</p>
 </blockquote>
 <p><strong>Step 6 — Dual-Headed GNN.</strong> Topology is jointly node-and-edge. Add a node head and mask edges by the boolean conjunction:</p>
-<p><span class="math display">\[
+<p><span id="eq-topological-mask"><span class="math display">\[
 \mathrm{Mask}(u, v) \;=\; \bigl[P_\text{node}(u) \ge \tau\bigr] \,\land\, \bigl[P_\text{node}(v) \ge \tau\bigr] \,\land\, \bigl[P_\text{edge}(u, v) \ge \tau\bigr].
-\]</span></p>
+\tag{10}\]</span></span></p>
 <p>Trained on labels extracted from miniasm’s golden GFA (every arc on the unitig path → 1, else 0), this model reduces the 29,560-edge yeast graph to exactly 4,920 arcs at 100 % precision / 100 % recall — the bottom row above, N50 784,824 bp, bit-identical to miniasm.</p>
 <blockquote class="blockquote">
 <p><strong>Lesson 7.</strong> Topological masking — requiring both endpoints <em>and</em> the connecting edge to survive — is the minimal joint-classification scheme that respects the fact that the downstream consumer is a layout engine, not a per-edge auditor.</p>
@@ -863,9 +863,9 @@ P_\text{edge}(u, v) = \sigma\!\bigl(\,\mathrm{MLP}\bigl([\mathbf{h}_u, \mathbf{h
 </tbody>
 </table>
 <p>Focal loss (Lin et al.&nbsp;2017) reweights the BCE by <span class="math inline">\((1 - p_t)^\gamma\)</span> where <span class="math inline">\(p_t\)</span> is the model’s probability of the true class:</p>
-<p><span class="math display">\[
+<p><span id="eq-focal-loss"><span class="math display">\[
 \mathcal{L}_\text{focal}(p_t) \;=\; -\,(1 - p_t)^{\gamma} \,\log p_t,\qquad \gamma = 2.
-\]</span></p>
+\tag{11}\]</span></span></p>
 <p>When <span class="math inline">\(p_t\)</span> is high (confident-and-correct) the prefactor <span class="math inline">\((1 - p_t)^\gamma \to 0\)</span> and the loss zeros out; gradient capacity concentrates on the hard cases. For our 93 / 7 imbalance this dominates: a cumulative variant combining all four interventions scored 97.17 %, <em>below</em> focal alone — the regularisers actively interfere with one another once focal is in place. (Class-balanced loss, Cui et al.&nbsp;2019, gives a similar reweighting via the effective-number-of-samples lens; we did not separately ablate it.)</p>
 <blockquote class="blockquote">
 <p><strong>Lesson 10.</strong> Focal loss is the right tool for the topological-imbalance problem and the gradient-imbalance problem at once. The 93 % of “easy” true biological edges would otherwise dominate the gradient and starve learning on the 7 % chimeric/bridge edges that <em>are</em> what we need the model for.</p>
@@ -874,9 +874,9 @@ P_\text{edge}(u, v) = \sigma\!\bigl(\,\mathrm{MLP}\bigl([\mathbf{h}_u, \mathbf{h
 <p><strong>Lesson 11.</strong> Label smoothing is informative in reverse. A −2.07 pp regression from <span class="math inline">\(\epsilon = 0.05\)</span> smoothing means the wfmash labels are clean enough that forcing the network to express uncertainty actively destroys it. This is unusual — most production ML labels benefit from ε ∈ [0.05, 0.1] — and it argues for keeping wfmash, not minimap2, as the source-of-truth aligner for diploid label generation.</p>
 </blockquote>
 <p><strong>Final locked architecture for the tri-ancestry scale-up:</strong></p>
-<p><span class="math display">\[
+<p><span id="eq-final-arch"><span class="math display">\[
 \text{GINEConv}\;(5\,\text{layers},\;512\,\text{hidden},\;\text{Focal}\,\gamma{=}2,\;\text{wfmash labels}) \;\rightarrow\; 97.44\%.
-\]</span></p>
+\tag{12}\]</span></span></p>
 <hr>
 </section>
 </section>

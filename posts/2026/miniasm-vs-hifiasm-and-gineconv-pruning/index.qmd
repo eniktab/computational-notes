@@ -37,13 +37,13 @@ Adjacency is naturally written as a sparse matrix $M \in \{0,1\}^{2N \times 2N}$
 
 $$
 \bigl|\, \ell(u\!\to\!v) + \ell(v\!\to\!w) \;-\; \ell(u\!\to\!w) \,\bigr| \;\le\; \epsilon.
-$$
+$$ {#eq-myers-fuzz}
 
 The **transitive reduction** $G_r$ is obtained by removing every transitive arc. The implementation in miniasm (and its byte-identical fork in hifiasm) computes this in expected near-linear time per node by sorting outgoing arcs by length and using a length budget
 
 $$
 L = \ell\bigl(av_{n_v-1}\bigr) + \texttt{fuzz}
-$$
+$$ {#eq-length-budget}
 
 , then sweeping: an arc to $w$ gets marked transitive iff some $w$-out-arc reaches a sibling within the budget. After every pass the assembler calls `asg_cleanup()` and `asg_symm()` to symmetrise the deletion across the twin arcs.
 
@@ -52,7 +52,7 @@ In sparse-matrix form the boolean version is
 $$
 M_r \;=\; M \;\setminus\; \Bigl( M \cap \bigcup_{k=2}^{\infty} M^{(k)} \Bigr),
 \qquad M^{(k)} = M^{(k-1)} \,\odot\, M,
-$$
+$$ {#eq-boolean-tr}
 
 where $\odot$ is boolean matrix multiplication. Without a length budget this drops *every* topologically transitive arc — which, as we discovered the hard way in Phase 1 below, shatters repetitive regions in real genomes: shortcuts through repeat copies close a triangle topologically but the arc lengths do not satisfy Myers's $\epsilon$-tolerance, so deleting the longer direct arc is biologically meaningless.
 
@@ -62,13 +62,13 @@ To enforce Myers's fuzz tolerance as algebra rather than as a control-flow predi
 
 $$
 (M \otimes M)_{uw} \;=\; \min_{v}\!\bigl(\, M_{uv} + M_{vw} \,\bigr),
-$$
+$$ {#eq-tropical-mult}
 
 with $M_{uv} = \ell(u\!\to\!v)$ if the arc exists and $+\infty$ otherwise. An arc $u \to w$ is transitive at tolerance $\epsilon$ iff
 
 $$
 (M \otimes M)_{uw} \;\le\; \ell(u\!\to\!w) + \epsilon.
-$$
+$$ {#eq-tropical-transitive}
 
 This is the exact algebraic form of the inner loop in `asg_arc_del_trans`. We implemented it with `scatter_reduce_(..., reduce='amin')` over the COO representation.
 
@@ -78,7 +78,7 @@ All modern GNNs fit Gilmer et al.'s (2017) **message-passing** template — at e
 
 $$
 \mathbf{h}_u^{(t+1)} \;=\; \phi\Bigl(\mathbf{h}_u^{(t)},\;\; \bigoplus_{v \in \mathcal{N}(u)} \psi\bigl(\mathbf{h}_v^{(t)}, \mathbf{e}_{uv}\bigr)\Bigr),
-$$
+$$ {#eq-mpnn}
 
 with $\oplus$ a permutation-invariant pool. Different architectures instantiate $\phi$, $\psi$, $\oplus$ differently: **GCN** (Kipf & Welling 2017) uses a symmetrically-normalised mean and ignores edge features; **GraphSAGE** (Hamilton et al. 2017) concatenates a separate node vector with a pooled neighbour vector; **GAT** (Veličković et al. 2018) and its corrected variant **GATv2** (Brody et al. 2022) replace $\oplus$ with attention.
 
@@ -86,13 +86,13 @@ Xu et al. (2019) proved that the **discriminative power** of any message-passing
 
 $$
 \mathbf{h}_u^{(t+1)} \;=\; \mathrm{MLP}\Bigl((1+\eta)\,\mathbf{h}_u^{(t)} \;+\; \sum_{v \in \mathcal{N}(u)} \mathbf{h}_v^{(t)}\Bigr).
-$$
+$$ {#eq-gin}
 
 The **GINE** variant (Hu et al. 2020, "Strategies for pre-training graph neural networks") generalises GIN to incorporate edge features into every aggregation step:
 
 $$
 \mathbf{h}_u^{(t+1)} \;=\; \mathrm{MLP}\Bigl((1+\eta)\,\mathbf{h}_u^{(t)} \;+\; \sum_{v \in \mathcal{N}(u)} \mathrm{ReLU}\bigl(\mathbf{h}_v^{(t)} + \mathbf{e}_{uv}\bigr)\Bigr).
-$$
+$$ {#eq-gine}
 
 For string-graph cleaning the edge features carry the overlap geometry (length, identity, span, etc.); GINE's $\mathrm{ReLU}(\mathbf{h}_v + \mathbf{e}_{uv})$ injection at *every* layer — rather than only at the final readout, as in vanilla SAGE — is what lets the network distinguish transitive arcs from tips from bubbles in a single forward pass. GAT-family attention uses edge features only as inputs to attention coefficients, which in our setting (Wave 2b in §4.2 below) was strictly less stable than direct injection into the aggregated signal. Strictly more expressive frameworks exist — Corso et al.'s **PNA** (Principal Neighbourhood Aggregation, 2020) replaces the sum with a learned combination of multiple aggregators, and graph transformers (Dwivedi & Bresson 2021) extend the WL bound at higher cost — but we did not need them.
 
@@ -215,7 +215,7 @@ All yeast numbers below are evaluated against the SacCer3 reference with QUAST d
 
 $$
 P_\text{edge}(u, v) = \sigma\!\bigl(\,\mathrm{MLP}\bigl([\mathbf{h}_u, \mathbf{h}_v, \mathbf{e}_{uv}]\bigr)\bigr).
-$$
+$$ {#eq-edge-only-gnn}
 
 Edge precision was excellent; assembly contiguity was destroyed. Reads with no surviving incident arcs stayed in the graph as zero-degree islands, and the layout engine terminated contigs at every dead-end.
 
@@ -225,7 +225,7 @@ Edge precision was excellent; assembly contiguity was destroyed. Reads with no s
 
 $$
 \mathrm{Mask}(u, v) \;=\; \bigl[P_\text{node}(u) \ge \tau\bigr] \,\land\, \bigl[P_\text{node}(v) \ge \tau\bigr] \,\land\, \bigl[P_\text{edge}(u, v) \ge \tau\bigr].
-$$
+$$ {#eq-topological-mask}
 
 Trained on labels extracted from miniasm's golden GFA (every arc on the unitig path → 1, else 0), this model reduces the 29,560-edge yeast graph to exactly 4,920 arcs at 100 % precision / 100 % recall — the bottom row above, N50 784,824 bp, bit-identical to miniasm.
 
@@ -273,7 +273,7 @@ Focal loss (Lin et al. 2017) reweights the BCE by $(1 - p_t)^\gamma$ where $p_t$
 
 $$
 \mathcal{L}_\text{focal}(p_t) \;=\; -\,(1 - p_t)^{\gamma} \,\log p_t,\qquad \gamma = 2.
-$$
+$$ {#eq-focal-loss}
 
 When $p_t$ is high (confident-and-correct) the prefactor $(1 - p_t)^\gamma \to 0$ and the loss zeros out; gradient capacity concentrates on the hard cases. For our 93 / 7 imbalance this dominates: a cumulative variant combining all four interventions scored 97.17 %, *below* focal alone — the regularisers actively interfere with one another once focal is in place. (Class-balanced loss, Cui et al. 2019, gives a similar reweighting via the effective-number-of-samples lens; we did not separately ablate it.)
 
@@ -285,7 +285,7 @@ When $p_t$ is high (confident-and-correct) the prefactor $(1 - p_t)^\gamma \to 0
 
 $$
 \text{GINEConv}\;(5\,\text{layers},\;512\,\text{hidden},\;\text{Focal}\,\gamma{=}2,\;\text{wfmash labels}) \;\rightarrow\; 97.44\%.
-$$
+$$ {#eq-final-arch}
 
 ---
 

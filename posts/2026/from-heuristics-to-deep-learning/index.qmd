@@ -49,7 +49,7 @@ Let $M$ be the adjacency matrix of a Directed Acyclic Graph. The transitive clos
 
 $$
 M_{reduced} = M \setminus \left( M \cap \bigcup_{k=2}^{\infty} M_k \right)
-$$
+$$ {#eq-boolean-tr}
 
 We implemented this entirely in `torch.sparse_coo_tensor`, with no Python loops and no CPU dispatch overhead, just raw matrix multiplications on the GPU.
 
@@ -164,7 +164,7 @@ We trained a standard GNN to predict the survival probability of each overlap:
 
 $$
 P_{edge}(u, v) = \sigma\left( \text{MLP}_{edge}( \mathbf{h}_u, \mathbf{h}_v, \mathbf{e}_{u,v} ) \right)
-$$
+$$ {#eq-edge-only}
 
 where $\mathbf{h}_u$ and $\mathbf{h}_v$ are learned node embeddings propagated through 3 message-passing layers, and $\mathbf{e}_{u,v}$ are the 10-dimensional geometric features of the overlap (distance, span, matching bases, block length, mapping quality, identity, and normalised coordinate ratios).
 
@@ -188,13 +188,13 @@ We architected a **Dual-Headed GNN** (`DualHeadedGNN` in `train_gnn.py`) with 3 
 
 $$
 P_{node}(u) = \sigma\left( \text{MLP}_{node}( \mathbf{h}_u ) \right)
-$$
+$$ {#eq-node-head}
 
 **2. Edge Head:** whether an overlap is structurally valid:
 
 $$
 P_{edge}(u, v) = \sigma\left( \text{MLP}_{edge}( \mathbf{h}_u, \mathbf{h}_v, \mathbf{e}_{u,v} ) \right)
-$$
+$$ {#eq-edge-head}
 
 ### Ground Truth Generation
 
@@ -210,7 +210,7 @@ During inference, instead of naively thresholding edges, we enforce a strict **t
 
 $$
 \text{Mask}_{final} = \big[ P_{node}(u) \ge 0.5 \big] \land \big[ P_{node}(v) \ge 0.5 \big] \land \big[ P_{edge}(u, v) \ge 0.5 \big]
-$$
+$$ {#eq-topological-mask}
 
 This boolean intersection is natively vectorised in a PyTorch implementation, executing across millions of edges in milliseconds. And because node validity is checked first, we never get the "dead-end contig" problem that killed the edge-only GNN.
 
@@ -222,7 +222,7 @@ Because false negatives (deleting a true edge) irrevocably fracture an assembly,
 
 $$
 \mathcal{L}_{total} = \mathcal{L}_{BCE\_node}(\mathbf{w}_{node}) + \mathcal{L}_{BCE\_edge}(\mathbf{w}_{edge})
-$$
+$$ {#eq-joint-loss}
 
 
 ---
