@@ -484,44 +484,49 @@ Eli Niktab
     article.appendChild(bottom);
   }
 
-  // ---- Cite button: rendered inline at the end of the "Published · date"
-  // row so it shares the same small uppercase sans-serif styling as the
-  // rest of the metadata. Opens a modal with a copy-able BibTeX entry.
-  const publishedRow = document.querySelector(
+  // ---- Cite button: appended at the end of the "Published · date" row,
+  // styled to match the date's font/colour exactly (sans-serif, regular
+  // weight, muted, dashed underline). Click opens a centred modal with a
+  // BibTeX entry built from page metadata.
+  var publishedRow = document.querySelector(
     ".quarto-title-meta > div:not(:first-child)"
   );
   if (publishedRow) {
-    const citeBtn = document.createElement("button");
+    var citeBtn = document.createElement("button");
     citeBtn.className = "post-cite-button";
     citeBtn.type = "button";
     citeBtn.textContent = "Cite";
     citeBtn.setAttribute("aria-label", "Open citation popup");
     publishedRow.appendChild(citeBtn);
-    citeBtn.addEventListener("click", openCiteModal);
+    citeBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openCiteModalNow();
+    });
   }
 
-  function openCiteModal() {
-    const titleEl = document.querySelector("h1.title");
-    const title = (titleEl ? titleEl.textContent : "Untitled").trim();
-    const url = window.location.href.replace(/\/index\.html$/, "/");
-    const dateMeta = document.querySelector('meta[name="dcterms.date"]');
-    const dateStr = dateMeta ? dateMeta.getAttribute("content") : "";
-    const year = (dateStr.slice(0, 4) || String(new Date().getFullYear()));
-    const monthNum = parseInt(dateStr.slice(5, 7), 10);
-    const monthName = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"][monthNum - 1] || "jan";
-    const today = new Date().toISOString().slice(0, 10);
+  function openCiteModalNow() {
+    // 1) Build citation data from page metadata
+    var titleEl = document.querySelector("h1.title");
+    var title = (titleEl ? titleEl.textContent : "Untitled").trim();
+    var url = window.location.href.replace(/\/index\.html$/, "/");
+    var dateMeta = document.querySelector('meta[name="dcterms.date"]');
+    var dateStr = dateMeta ? dateMeta.getAttribute("content") : "";
+    var year = dateStr.slice(0, 4) || String(new Date().getFullYear());
+    var monthNum = parseInt(dateStr.slice(5, 7), 10);
+    var months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+    var monthName = months[monthNum - 1] || "jan";
+    var dayNum = parseInt(dateStr.slice(8, 10), 10);
+    var today = new Date().toISOString().slice(0, 10);
 
-    // Citation key: niktab<year><first-meaningful-slug-word>
-    const slugMatch = window.location.pathname.match(/posts\/[^/]+\/([^/]+)/);
-    const slug = slugMatch ? slugMatch[1] : "post";
-    const stop = new Set([
-      "the","of","and","to","for","with","a","an","in","on","from","by","via",
-      "is","or","at","vs","be","but","into","over","under","how","what","why",
-      "that","this","than","then","both","them","behind"
-    ]);
-    const slugWords = slug.split(/[-_]/).filter(function (w) { return w && !stop.has(w); });
-    const keyWord = (slugWords[0] || slug.split(/[-_]/)[0] || "post").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const citeKey = "niktab" + year + keyWord;
+    var slugMatch = window.location.pathname.match(/posts\/[^/]+\/([^/]+)/);
+    var slug = slugMatch ? slugMatch[1] : "post";
+    var stop = ["the","of","and","to","for","with","a","an","in","on","from","by","via","is","or","at","vs","be","but","into","over","under","how","what","why","that","this","than","then","both","them","behind"];
+    var slugWords = slug.split(/[-_]/).filter(function (w) {
+      return w && stop.indexOf(w) === -1;
+    });
+    var keyWord = (slugWords[0] || slug.split(/[-_]/)[0] || "post").toLowerCase().replace(/[^a-z0-9]/g, "");
+    var citeKey = "niktab" + year + keyWord;
 
     var bibtex = "@misc{" + citeKey + ",\n" +
       "  author       = {Niktab, Eli},\n" +
@@ -533,15 +538,12 @@ Eli Niktab
       "  urldate      = {" + today + "}\n" +
       "}";
 
-    var apa = "Niktab, E. (" + year + ", " + capitalize(monthName) + " " + (parseInt(dateStr.slice(8, 10), 10) || "") + "). " +
+    var apa = "Niktab, E. (" + year + ", " +
+      monthName.charAt(0).toUpperCase() + monthName.slice(1) +
+      (dayNum ? " " + dayNum : "") + "). " +
       title + ". Computational Notes. " + url;
 
-    showCiteModal(bibtex, apa);
-  }
-
-  function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-
-  function showCiteModal(bibtex, apa) {
+    // 2) Build modal DOM (inline so no function-hoisting dependency)
     var modal = document.createElement("div");
     modal.className = "post-cite-modal";
     modal.innerHTML = [
@@ -567,32 +569,41 @@ Eli Niktab
     document.body.appendChild(modal);
     document.body.style.overflow = "hidden";
 
-    function close() {
+    function closeModal() {
       modal.remove();
       document.body.style.overflow = "";
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKeyDown);
     }
-    function onKey(e) {
-      if (e.key === "Escape") close();
+    function onKeyDown(ev) {
+      if (ev.key === "Escape") closeModal();
     }
-    document.addEventListener("keydown", onKey);
-    modal.querySelector(".post-cite-modal__overlay").addEventListener("click", close);
-    modal.querySelector(".post-cite-modal__x").addEventListener("click", close);
+    document.addEventListener("keydown", onKeyDown);
+    modal.querySelector(".post-cite-modal__overlay").addEventListener("click", closeModal);
+    modal.querySelector(".post-cite-modal__x").addEventListener("click", closeModal);
 
     var statusEl = modal.querySelector(".post-cite-modal__status");
     var copyButtons = modal.querySelectorAll(".post-cite-modal__copy");
-    copyButtons.forEach(function (btn) {
-      btn.addEventListener("click", async function () {
+    Array.prototype.forEach.call(copyButtons, function (btn) {
+      btn.addEventListener("click", function () {
         var payload = btn.getAttribute("data-target") === "apa" ? apa : bibtex;
-        try {
-          if (!navigator.clipboard || !navigator.clipboard.writeText) {
-            throw new Error("clipboard API unavailable");
-          }
-          await navigator.clipboard.writeText(payload);
+        var done = function () {
           statusEl.textContent = "Copied.";
           setTimeout(function () { statusEl.textContent = ""; }, 2500);
-        } catch (err) {
-          statusEl.textContent = "Copy failed — select and copy manually.";
+        };
+        var fallback = function () {
+          // fallback: select the <pre> contents
+          var pre = modal.querySelector(".post-cite-modal__bib");
+          var range = document.createRange();
+          range.selectNodeContents(pre);
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          statusEl.textContent = "Select copied — press " + (navigator.platform.indexOf("Mac") !== -1 ? "⌘+C" : "Ctrl+C") + ".";
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(payload).then(done, fallback);
+        } else {
+          fallback();
         }
       });
     });

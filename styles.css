@@ -234,17 +234,11 @@ h1.title {
   margin: 0;
 }
 
-/* The first meta block is the Author. Suppress the redundant "Author"
-   label and present the name itself as the byline. */
-.quarto-title-meta > div:first-child .quarto-title-meta-heading {
+/* The first meta block is the Author. Hide it entirely on post pages —
+   the byline is redundant with the About-page authorship signal and the
+   reader doesn't need to be reminded under every post. */
+.quarto-title-meta > div:first-child {
   display: none;
-}
-
-.quarto-title-meta > div:first-child .quarto-title-meta-contents p {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--ink);
-  letter-spacing: 0.005em;
 }
 
 /* Subsequent meta rows (Published, etc.) render inline: LABEL · value */
@@ -1003,39 +997,43 @@ div.list.quarto-listing-default div.quarto-post .body .listing-description {
 }
 
 /* ============ CITE BUTTON + MODAL ============
-   The "Cite" pill sits at the end of the "Published · date" meta row,
-   styled to inherit the same small uppercase sans-serif look as the rest
-   of the metadata. The modal it opens shows a BibTeX entry (and an APA
-   plain-text fallback) with a copy-to-clipboard button. */
+   The "Cite" link sits at the end of the "Published · date" meta row,
+   styled to match the date itself exactly — same sans-serif font, same
+   muted colour, same regular weight, no uppercase, no tracking. A
+   dashed underline distinguishes it as a control without colouring it. */
 .post-cite-button {
-  font-family: var(--sans);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  color: inherit;
   background: transparent;
   border: 0;
   padding: 0;
   margin: 0;
   cursor: pointer;
-  border-bottom: 1px dashed var(--accent);
-  line-height: 1.4;
-  transition: color 120ms ease, border-bottom-style 120ms ease;
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  line-height: inherit;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
 }
 
 .post-cite-button::before {
   content: "·";
   display: inline-block;
-  margin: 0 0.45rem 0 0.05rem;
+  margin: 0 0.45rem 0 0.1rem;
   color: var(--rule);
-  border: 0;
+  text-decoration: none;
 }
 
 .post-cite-button:hover,
 .post-cite-button:focus-visible {
-  color: var(--accent-dark);
-  border-bottom-style: solid;
+  color: var(--accent);
+  text-decoration-color: var(--accent);
   outline: none;
 }
 
