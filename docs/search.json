@@ -1,12 +1,5 @@
 [
   {
-    "objectID": "about.html",
-    "href": "about.html",
-    "title": "About",
-    "section": "",
-    "text": "I have research experience in academic, policy making, clinical, and industrial settings, specializing in exploring multi-feature data, particularly omics, through in silico, in vitro, and in vivo methodologies.\nMy primary interests include Applied AI for Health, Stochastic Modeling of Heterogeneous Systems, Manifold Learning for Regulatory Networks, and Functional Genomics.\nGitHub | LinkedIn"
-  },
-  {
     "objectID": "posts/2026/from-heuristics-to-deep-learning/index.html",
     "href": "posts/2026/from-heuristics-to-deep-learning/index.html",
     "title": "From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity",
@@ -89,6 +82,13 @@
     "title": "From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity",
     "section": "References & Literature Context",
     "text": "References & Literature Context\nOur Dual-Headed architecture builds upon an emerging body of research that reframes genome assembly graphs as deep learning problems:\n\nGNNome (2021): One of the pioneering frameworks that formulated haploid genome assembly as a supervised binary edge classification task, proving that Graph Convolutional Networks (GCNs) could learn true adjacencies from simulated overlap graphs.\nCOGRAM: Demonstrated the feasibility of using lightweight GCNs to score and classify edges on k-mer overlap graphs.\nDipGNNome (2023): Extended the GNNome architecture to diploid genome assembly, highlighting the power of GNNs in haplotype-aware graph processing.\n\nOur Dual-Headed GNN advances this literature by explicitly solving the “dead-end contig” fragmentation problem through joint node-and-edge classification, allowing the pipeline to execute topological masking that perfectly mirrors the structural integrity of C-based heuristics at a fraction of the serialised compute time."
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "I have research experience in academic, policy making, clinical, and industrial settings, specializing in exploring multi-feature data, particularly omics, through in silico, in vitro, and in vivo methodologies.\nMy primary interests include Applied AI for Health, Stochastic Modeling of Heterogeneous Systems, Manifold Learning for Regulatory Networks, and Functional Genomics.\nGitHub | LinkedIn"
   },
   {
     "objectID": "index.html",

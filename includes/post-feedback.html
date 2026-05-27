@@ -1,0 +1,86 @@
+<script>
+(function () {
+  const path = window.location.pathname.replace(/\/index\.html$/, "/");
+  if (!path.includes("/posts/")) {
+    return;
+  }
+
+  const article =
+    document.querySelector("main.content#quarto-document-content") ||
+    document.querySelector("main.content") ||
+    document.querySelector("#quarto-document-content");
+  if (!article) {
+    return;
+  }
+
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const bookmarkHint = isMac ? "⌘+D" : "Ctrl+D";
+
+  const feedback = document.createElement("section");
+  feedback.className = "post-feedback";
+  feedback.innerHTML = [
+    '<div class="post-feedback__intro">',
+    '  <p class="post-feedback__eyebrow">Save &amp; discuss</p>',
+    '  <h2 class="post-feedback__title">Star, bookmark, or leave a comment</h2>',
+    '  <p class="post-feedback__copy">Star the blog on GitHub to support it, copy the link to bookmark this post, or react and comment below via GitHub Discussions.</p>',
+    "</div>",
+    '<div class="post-feedback__actions">',
+    '  <iframe class="post-feedback__github-star" src="https://ghbtns.com/github-btn.html?user=eniktab&amp;repo=computational-notes&amp;type=star&amp;count=true&amp;size=large" frameborder="0" scrolling="0" width="170" height="30" title="Star eniktab/computational-notes on GitHub" loading="lazy"></iframe>',
+    '  <button class="post-feedback__bookmark" type="button">',
+    '    <span class="post-feedback__bookmark-icon" aria-hidden="true">\u{1F516}</span>',
+    '    <span class="post-feedback__bookmark-label">Copy link</span>',
+    "  </button>",
+    '  <p class="post-feedback__status" aria-live="polite">Tip: press <kbd>' + bookmarkHint + "</kbd> to add this page to your browser bookmarks.</p>",
+    "</div>",
+    '<div class="post-feedback__comments">',
+    '  <div id="giscus_thread"></div>',
+    "  <noscript>Enable JavaScript to load comments and reactions.</noscript>",
+    '  <p class="post-feedback__fallback"><a href="https://github.com/eniktab/computational-notes/discussions" target="_blank" rel="noreferrer">Open the discussions board directly</a> if the thread does not load.</p>',
+    "</div>",
+  ].join("");
+
+  article.appendChild(feedback);
+
+  const bookmarkButton = feedback.querySelector(".post-feedback__bookmark");
+  const bookmarkLabel = feedback.querySelector(".post-feedback__bookmark-label");
+  const status = feedback.querySelector(".post-feedback__status");
+  const defaultStatusHTML = status.innerHTML;
+
+  bookmarkButton.addEventListener("click", async function () {
+    const url = window.location.href;
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        throw new Error("clipboard API unavailable");
+      }
+      await navigator.clipboard.writeText(url);
+      bookmarkLabel.textContent = "Copied";
+      status.textContent = "Link copied — press " + bookmarkHint + " to add it to your browser bookmarks.";
+      setTimeout(function () {
+        bookmarkLabel.textContent = "Copy link";
+        status.innerHTML = defaultStatusHTML;
+      }, 4000);
+    } catch (error) {
+      status.textContent = "Copy failed — press " + bookmarkHint + " to bookmark this page directly.";
+    }
+  });
+
+  const giscusScript = document.createElement("script");
+  giscusScript.src = "https://giscus.app/client.js";
+  giscusScript.async = true;
+  giscusScript.crossOrigin = "anonymous";
+  giscusScript.setAttribute("data-repo", "eniktab/computational-notes");
+  giscusScript.setAttribute("data-repo-id", "R_kgDOSnFh9g");
+  giscusScript.setAttribute("data-category", "General");
+  giscusScript.setAttribute("data-category-id", "DIC_kwDOSnFh9s4C9zQn");
+  giscusScript.setAttribute("data-mapping", "pathname");
+  giscusScript.setAttribute("data-strict", "0");
+  giscusScript.setAttribute("data-reactions-enabled", "1");
+  giscusScript.setAttribute("data-emit-metadata", "0");
+  giscusScript.setAttribute("data-input-position", "top");
+  giscusScript.setAttribute("data-theme", "light");
+  giscusScript.setAttribute("data-lang", "en");
+  giscusScript.setAttribute("data-loading", "lazy");
+
+  feedback.querySelector("#giscus_thread").appendChild(giscusScript);
+})();
+</script>

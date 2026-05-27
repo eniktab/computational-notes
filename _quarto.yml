@@ -15,9 +15,14 @@ website:
         href: blog.qmd
       - text: About
         href: about.qmd
+    right:
+      - icon: github
+        href: https://github.com/eniktab/computational-notes
+        aria-label: Star on GitHub
 
 format:
   html:
     theme: default
     css: styles.css
     toc: false
+    include-after-body: includes/post-feedback.html
