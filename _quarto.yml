@@ -50,7 +50,6 @@ format:
     code-line-numbers: false
     lightbox: auto
     reading-time: true
-    date-modified: last-modified
     link-external-icon: false
     link-external-newwindow: true
     smooth-scroll: true

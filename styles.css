@@ -18,12 +18,12 @@
 }
 
 /* Dark-mode counterparts — Quarto adds data-bs-theme="dark" to <html> when
-   the reader toggles theme. We scope to `html[data-bs-theme="dark"]` (NOT
+   the reader toggles theme. We scope to `body.quarto-dark` (NOT
    the unqualified `[data-bs-theme="dark"]`) because Quarto also stamps
    data-bs-theme="dark" on the navbar element regardless of page scheme,
    which would otherwise cause the navbar to permanently use dark colours
    even in light mode. */
-html[data-bs-theme="dark"] {
+body.quarto-dark {
   --ink: #ece9e0;
   --ink-soft: #c9c5bd;
   --muted: #8e8e8e;
@@ -37,7 +37,7 @@ html[data-bs-theme="dark"] {
   --code-bg: #1e2126;
 }
 
-html[data-bs-theme="dark"] body {
+body.quarto-dark body {
   background: var(--paper);
   color: var(--ink);
 }
@@ -969,12 +969,37 @@ div.list.quarto-listing-default div.quarto-post .body .listing-description {
 
 /* ============ CATEGORIES (post tags) ============
    Quarto wraps post `categories:` in .quarto-categories within the title
-   block, and renders chips again in listings. Style both. */
-.quarto-categories {
+   block. We hide that copy (we want tags at the bottom of the post, not
+   the top), then clone the chips into a .post-tags-bottom block via the
+   include-after-body script. */
+#title-block-header .quarto-categories {
+  display: none;
+}
+
+.quarto-categories,
+.post-tags-bottom {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   margin: 0.8rem 0 0;
+}
+
+.post-tags-bottom {
+  margin: 3rem 0 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+  align-items: center;
+}
+
+.post-tags-bottom::before {
+  content: "Tags";
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-right: 0.6rem;
 }
 
 .quarto-category {
@@ -1163,9 +1188,9 @@ figure.figure[id^="fig-"] {
   filter: invert(0.05);
 }
 
-html[data-bs-theme="dark"] .glightbox-container .gprev,
-html[data-bs-theme="dark"] .glightbox-container .gnext,
-html[data-bs-theme="dark"] .glightbox-container .gclose {
+body.quarto-dark .glightbox-container .gprev,
+body.quarto-dark .glightbox-container .gnext,
+body.quarto-dark .glightbox-container .gclose {
   filter: invert(0.95);
 }
 
@@ -1295,92 +1320,92 @@ a[role="doc-biblioref"],
    Most things inherit from CSS vars defined at the top, but a few hard-coded
    greys, the code highlighter, and Bootstrap defaults need explicit dark
    counterparts. */
-html[data-bs-theme="dark"] {
+body.quarto-dark {
   color-scheme: dark;
 }
 
-html[data-bs-theme="dark"] .navbar {
+body.quarto-dark .navbar {
   background: var(--paper) !important;
   border-bottom-color: var(--rule);
 }
 
-html[data-bs-theme="dark"] .navbar-toggler-icon {
+body.quarto-dark .navbar-toggler-icon {
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23ece9e0' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
 }
 
-html[data-bs-theme="dark"] p code,
-html[data-bs-theme="dark"] li code,
-html[data-bs-theme="dark"] td code,
-html[data-bs-theme="dark"] h1 code,
-html[data-bs-theme="dark"] h2 code,
-html[data-bs-theme="dark"] h3 code,
-html[data-bs-theme="dark"] h4 code {
+body.quarto-dark p code,
+body.quarto-dark li code,
+body.quarto-dark td code,
+body.quarto-dark h1 code,
+body.quarto-dark h2 code,
+body.quarto-dark h3 code,
+body.quarto-dark h4 code {
   background: var(--code-bg);
   color: var(--accent);
   border-color: var(--rule);
 }
 
-html[data-bs-theme="dark"] pre,
-html[data-bs-theme="dark"] div.sourceCode {
+body.quarto-dark pre,
+body.quarto-dark div.sourceCode {
   background: var(--code-bg);
   border-color: var(--rule);
   border-left-color: var(--ink-soft);
 }
 
-html[data-bs-theme="dark"] kbd {
+body.quarto-dark kbd {
   background: var(--paper-warm);
   border-color: var(--rule);
   color: var(--ink);
 }
 
-html[data-bs-theme="dark"] thead {
+body.quarto-dark thead {
   border-top-color: var(--ink-soft);
   border-bottom-color: var(--ink-soft);
 }
 
-html[data-bs-theme="dark"] tbody {
+body.quarto-dark tbody {
   border-bottom-color: var(--ink-soft);
 }
 
-html[data-bs-theme="dark"] tbody tr + tr {
+body.quarto-dark tbody tr + tr {
   border-top-color: var(--rule);
 }
 
-html[data-bs-theme="dark"] hr {
+body.quarto-dark hr {
   background-image: linear-gradient(90deg, var(--rule), var(--rule));
 }
 
-html[data-bs-theme="dark"] hr::after {
+body.quarto-dark hr::after {
   background: var(--paper);
 }
 
-html[data-bs-theme="dark"] blockquote {
+body.quarto-dark blockquote {
   color: var(--ink-soft);
 }
 
-html[data-bs-theme="dark"] main.content img,
-html[data-bs-theme="dark"] main.content figure img {
+body.quarto-dark main.content img,
+body.quarto-dark main.content figure img {
   filter: brightness(0.92);
 }
 
-html[data-bs-theme="dark"] .callout {
+body.quarto-dark .callout {
   background: var(--paper-warm);
   border-color: var(--rule);
 }
 
-html[data-bs-theme="dark"] .callout-header {
+body.quarto-dark .callout-header {
   border-bottom-color: var(--rule);
 }
 
-html[data-bs-theme="dark"] .recent-posts-banner li,
-html[data-bs-theme="dark"] div.list.quarto-listing-default div.quarto-post {
+body.quarto-dark .recent-posts-banner li,
+body.quarto-dark div.list.quarto-listing-default div.quarto-post {
   background: var(--paper);
   border-color: var(--rule);
 }
 
-html[data-bs-theme="dark"] .quarto-category,
-html[data-bs-theme="dark"] .quarto-listing-category .category,
-html[data-bs-theme="dark"] div.list.quarto-listing-default div.quarto-post .listing-categories .listing-category {
+body.quarto-dark .quarto-category,
+body.quarto-dark .quarto-listing-category .category,
+body.quarto-dark div.list.quarto-listing-default div.quarto-post .listing-categories .listing-category {
   background: var(--paper-warm);
   border-color: var(--rule);
   color: var(--ink-soft);
@@ -1388,6 +1413,6 @@ html[data-bs-theme="dark"] div.list.quarto-listing-default div.quarto-post .list
 
 /* GHbtns star iframe in the feedback section has a light-only background;
    in dark mode it bleeds white. Wrap it in a clipping/inverted container. */
-html[data-bs-theme="dark"] .post-feedback__github-star {
+body.quarto-dark .post-feedback__github-star {
   filter: invert(0.92) hue-rotate(180deg);
 }

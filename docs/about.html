@@ -307,12 +307,6 @@ ul.task-list li input[type="checkbox"] {
 <h1 class="title">About</h1>
 </div>
 <div class="quarto-title-meta">
-    <div>
-    <div class="quarto-title-meta-heading">Modified</div>
-    <div class="quarto-title-meta-contents">
-      <p class="date-modified">May 27, 2026</p>
-    </div>
-  </div>
   </div>
 </header>
     <div class="about-links">
@@ -334,14 +328,8 @@ ul.task-list li input[type="checkbox"] {
 
 <p>I have research experience in academic, policy making, clinical, and industrial settings, specializing in exploring multi-feature data — particularly omics — through <em>in silico</em>, <em>in vitro</em>, and <em>in vivo</em> methodologies.</p>
 <p>My primary interests include Applied AI for Health, Stochastic Modeling of Heterogeneous Systems, Manifold Learning for Regulatory Networks, and Functional Genomics.</p>
-<section id="computational-notes" class="level2">
-<h2 data-anchor-id="computational-notes">Computational Notes</h2>
-<p>This site is where I work out technical material on long-read genome assembly, graph neural networks, deep learning on biological sequence data, and the bits of pure graph theory and tropical algebra that fall out of those problems.</p>
-<p>Posts are written as long-form lab-notebook entries: every result has a source-verified algorithmic background, a stated hypothesis, an experiment ledger, and a “what we learned” section. The intent is to share the reasoning trail, not just the headline number.</p>
-<p>Code, model weights, and reproducibility scripts referenced in posts live in their respective repositories under <a href="https://github.com/eniktab">github.com/eniktab</a>.</p>
 
 
-</section>
 </main></div>
 </div>
  <!-- /main -->
@@ -358,6 +346,22 @@ ul.task-list li input[type="checkbox"] {
     document.querySelector("#quarto-document-content");
   if (!article) {
     return;
+  }
+
+  // Move category chips from the title block to the bottom of the post.
+  // Quarto renders categories inside #title-block-header.quarto-categories;
+  // CSS hides that copy, and we clone the chips here into a .post-tags-bottom
+  // block appended just before the Save & Discuss feedback section.
+  const titleCats = document.querySelector(
+    "#title-block-header .quarto-categories"
+  );
+  if (titleCats && titleCats.children.length > 0) {
+    const bottom = document.createElement("div");
+    bottom.className = "post-tags-bottom";
+    Array.from(titleCats.children).forEach(function (chip) {
+      bottom.appendChild(chip.cloneNode(true));
+    });
+    article.appendChild(bottom);
   }
 
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);

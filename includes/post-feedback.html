@@ -13,6 +13,22 @@
     return;
   }
 
+  // Move category chips from the title block to the bottom of the post.
+  // Quarto renders categories inside #title-block-header.quarto-categories;
+  // CSS hides that copy, and we clone the chips here into a .post-tags-bottom
+  // block appended just before the Save & Discuss feedback section.
+  const titleCats = document.querySelector(
+    "#title-block-header .quarto-categories"
+  );
+  if (titleCats && titleCats.children.length > 0) {
+    const bottom = document.createElement("div");
+    bottom.className = "post-tags-bottom";
+    Array.from(titleCats.children).forEach(function (chip) {
+      bottom.appendChild(chip.cloneNode(true));
+    });
+    article.appendChild(bottom);
+  }
+
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const bookmarkHint = isMac ? "⌘+D" : "Ctrl+D";
 
