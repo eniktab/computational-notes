@@ -72,14 +72,14 @@ def render_home(posts: list[dict[str, object]]) -> str:
         "",
     ]
 
-    # Right-rail "Recent posts" sidebar — Quarto column directive that
-    # places content in the margin column on wide screens and inline on
-    # narrow ones.
-    lines.append("::: {.column-margin .recent-posts}")
-    lines.append("**Recent posts**")
+    # "Recent posts" top banner — a responsive card grid that spans the
+    # main content column, so it actually looks like a banner on desktop
+    # instead of a thin right-margin strip next to inlined post bodies.
+    lines.append("::: {.recent-posts-banner}")
+    lines.append("[Recent posts]{.recent-posts-banner-label}")
     lines.append("")
     for post in posts:
-        date_suffix = f" — *{post['date']}*" if post["date"] else ""
+        date_suffix = f" *{post['date']}*" if post["date"] else ""
         lines.append(f"- [{post['title']}]({post['path']}){date_suffix}")
     lines.append(":::")
     lines.append("")

@@ -139,7 +139,7 @@ window.Quarto = {
 <link rel="stylesheet" href="styles.css">
 </head>
 
-<body class="nav-fixed quarto-light">
+<body class="nav-fixed fullcontent quarto-light">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
@@ -186,10 +186,9 @@ window.Quarto = {
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-    </div>
+    
 <!-- main -->
-<main class="content page-columns page-full" id="quarto-document-content">
+<main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
@@ -211,14 +210,14 @@ window.Quarto = {
 </header>
 
 
-
-<div class="no-row-height column-margin column-container"><div class="recent-posts">
-<p><strong>Recent posts</strong></p>
+<div class="recent-posts-banner">
+<p><span class="recent-posts-banner-label">Recent posts</span></p>
 <ul>
-<li><a href="./posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.html">Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both</a> — <em>2026-05-27</em></li>
-<li><a href="./posts/2026/from-heuristics-to-deep-learning/index.html">From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity</a> — <em>2026-05-25</em></li>
+<li><a href="./posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.html">Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both</a> <em>2026-05-27</em></li>
+<li><a href="./posts/2026/from-heuristics-to-deep-learning/index.html">From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity</a> <em>2026-05-25</em></li>
 </ul>
-</div></div><section id="pruning-the-pruners-miniasm-vs-hifiasm-the-graph-theory-behind-them-and-how-an-edge-conditioned-gin-learned-both" class="level2">
+</div>
+<section id="pruning-the-pruners-miniasm-vs-hifiasm-the-graph-theory-behind-them-and-how-an-edge-conditioned-gin-learned-both" class="level2">
 <h2 class="anchored" data-anchor-id="pruning-the-pruners-miniasm-vs-hifiasm-the-graph-theory-behind-them-and-how-an-edge-conditioned-gin-learned-both"><a href="./posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.html">Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both</a></h2>
 <p><em>2026-05-27</em></p>
 <p><code>miniasm</code> and <code>hifiasm</code> are both string-graph assemblers, and <code>hifiasm</code>’s graph-cleaning code is directly forked from <code>miniasm</code>’s — they share the same <code>asg_t</code> data structure and the same core function names. The differences live in what <code>hifiasm</code> adds on top: a parallel hierarchy of <strong>diploid-aware and trio-aware</strong> variants that consult per-read haplotype tags, multi-round error correction wrapped around the cleaning, and a richer multi-output graph (<code>r_utg</code>, <code>p_utg</code>, <code>p_ctg</code>, <code>a_ctg</code>) instead of a single GFA.</p>

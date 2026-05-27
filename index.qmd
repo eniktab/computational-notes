@@ -4,11 +4,11 @@ subtitle: "Eli Niktab"
 toc: false
 ---
 
-::: {.column-margin .recent-posts}
-**Recent posts**
+::: {.recent-posts-banner}
+[Recent posts]{.recent-posts-banner-label}
 
-- [Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both](posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.qmd) — *2026-05-27*
-- [From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity](posts/2026/from-heuristics-to-deep-learning/index.qmd) — *2026-05-25*
+- [Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both](posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.qmd) *2026-05-27*
+- [From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity](posts/2026/from-heuristics-to-deep-learning/index.qmd) *2026-05-25*
 :::
 
 ## [Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both](posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.qmd)
