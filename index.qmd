@@ -4,6 +4,13 @@ subtitle: "Eli Niktab"
 toc: false
 ---
 
+::: {.column-margin .recent-posts}
+**Recent posts**
+
+- [Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both](posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.qmd) — *2026-05-27*
+- [From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity](posts/2026/from-heuristics-to-deep-learning/index.qmd) — *2026-05-25*
+:::
+
 ## [Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both](posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.qmd)
 
 *2026-05-27*
@@ -298,10 +305,9 @@ The 97.44 % is not 100 %. A few things remain:
 
 1. **Cross-haplotype bridges in alpha-satellite arrays.** The hardest 2.5 % of edges concentrate in centromeric repeats where the paternal and maternal arrays differ structurally rather than by SNPs. The current GINE features (overlap length, identity, match-length) do not include any signal about sequence-level repeat structure; the model has to infer it from topology alone. A natural extension is to add per-edge $k$-mer-frequency features (cf. Vrček et al. 2022's compositional features) or to integrate a small frozen DNA-LM embedding of the overlap sequence as an edge feature.
 2. **No trio data.** Hifiasm's `_trio` family of routines uses parental short-read $k$-mers to tag each read as paternal/maternal/ambiguous. We are training without trio for ancestry generality — HG002 has trio data, HG005 and HG00733 do not — but this means we are implicitly asking the network to *infer* haplotype assignment from graph topology alone. Adding a phasing pre-step (e.g. inheriting `trio_flag` labels from hifiasm's own assignment, where available) would likely close another 1–2 percentage points.
-3. **Layout, not just pruning.** This work replaces hifiasm's graph-cleaning cascade. The downstream unitig layout (the path-walking that emits `p_ctg` and `a_ctg`) is still C, and remains the next obvious GPU target. Verkko (Rautiainen et al. 2023) and FALCON-Unzip (Chin et al. 2016) provide useful design references for diploid-aware layout — and Verkko in particular is the system that produced the HPRC diploid references we use as ground truth, so closing the loop architecturally is plausible.
+3. **Layout, not just pruning.** This work replaces hifiasm's graph-cleaning cascade. The downstream unitig layout (the path-walking that emits `p_ctg` and `a_ctg`) is still C, and remains the next obvious GPU target.
 4. **The base-corrector is upstream and absent.** Everything above is conditioned on either real HiFi reads (which hifiasm has already error-corrected internally) or PBSIM3 perfect simulation. A standalone learned corrector — a permutation-invariant transformer over the read pileup, trained with wfmash CIGAR ground truth (HERRO-line; Stanojević et al. 2024; DeepConsensus, Baid et al. 2023) — is the upstream piece that closes the full pipeline.
 
-**Tri-ancestry scale-up status.** Hifiasm graphs for HG005 (Han Chinese) and HG00733 (Puerto Rican) are generating as I write. The pooled split — `chr1`–`chr18` train, `chr19`–`chr20` validate, `chr21`–`chr22` test, all across three samples — triples the training data and prevents overfitting to a single ancestral topology. Target N50: hifiasm v0.25 on HG002 chr22 sits at 49.29 Mb across 3 contigs at 99.96 % identity. Our K=1 OLC prototype on the same data: 119,743 contigs, 0.028 Mb, 98.27 %. The 1,700× contiguity gap is, as best we can tell, entirely about graph cleaning — which is exactly what the GINE-Focal model replaces.
 
 ---
 

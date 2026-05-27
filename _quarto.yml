@@ -8,6 +8,9 @@ website:
   title: "Computational Notes"
   site-url: "https://eniktab.github.io/computational-notes/"
   navbar:
+    background: light
+    foreground: dark
+    collapse-below: lg
     left:
       - text: Home
         href: index.qmd

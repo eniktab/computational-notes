@@ -81,6 +81,49 @@ body {
   vertical-align: -2px;
 }
 
+/* Mobile hamburger — Bootstrap's default toggler icon is white-on-dark; we run
+   light-on-light, so override the SVG with an ink-coloured one and give the
+   button a visible border. */
+.navbar-toggler {
+  border: 1px solid var(--rule);
+  padding: 0.35rem 0.5rem;
+  border-radius: 3px;
+  background: var(--paper);
+}
+
+.navbar-toggler:hover,
+.navbar-toggler:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  outline: none;
+}
+
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23111111' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+/* Collapsed nav drawer — once the hamburger is tapped, stack items
+   vertically in a panel under the navbar. */
+@media (max-width: 991.98px) {
+  .navbar-collapse {
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+    margin-top: 0.65rem;
+    padding: 0.5rem 0.25rem 0.75rem;
+  }
+  .navbar .nav-link {
+    padding: 0.65rem 0.5rem !important;
+  }
+  .navbar .navbar-nav.ms-auto {
+    margin-left: 0 !important;
+    border-top: 1px solid var(--rule-soft);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+  }
+}
+
 /* ============ LAYOUT ============ */
 #quarto-content {
   padding-top: 1.5rem;
@@ -703,6 +746,87 @@ main.content img[fig-alt*="Portrait"] {
   }
 }
 
+/* ============ "RECENT POSTS" SIDEBAR ON HOME ============
+   build_home.py emits a `:::{.column-margin .recent-posts}` block at the
+   top of index.qmd. Quarto turns that into a div in the right margin column
+   on wide screens and inlines it on narrow screens. We style it like the
+   post-page TOC sidebar so the home page has the same right-rail "what
+   else is here" affordance. */
+.recent-posts {
+  font-family: var(--sans);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  padding-left: 1rem;
+  border-left: 1px solid var(--rule);
+  margin-top: 0;
+}
+
+.recent-posts > p:first-child,
+.recent-posts > strong:first-child {
+  display: block;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--sans);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.recent-posts ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recent-posts li {
+  margin: 0;
+  padding: 0.32rem 0;
+  font-size: 0.84rem;
+  border-left: 2px solid transparent;
+  padding-left: 0.55rem;
+  margin-left: -0.55rem;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.recent-posts li:hover {
+  border-left-color: var(--rule);
+}
+
+.recent-posts a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.recent-posts a:hover {
+  color: var(--accent);
+}
+
+.recent-posts em {
+  display: block;
+  font-style: normal;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+/* On narrow screens the column-margin block collapses inline at the top;
+   relax the left border so it doesn't look like a misplaced TOC. */
+@media (max-width: 991.98px) {
+  .recent-posts {
+    border-left: 0;
+    padding-left: 0;
+    margin: 0 0 2rem;
+    padding: 1rem 1rem 1.25rem;
+    background: var(--paper-warm);
+    border: 1px solid var(--rule-soft);
+  }
+}
+
 /* ============ NARROW SCREENS ============ */
 @media (max-width: 768px) {
   nav#TOC {
@@ -714,6 +838,25 @@ main.content img[fig-alt*="Portrait"] {
     font-size: 0.72rem;
   }
   .navbar .nav-link {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+  }
+  main.content,
+  #quarto-document-content {
+    max-width: 100%;
+    padding: 0 1rem;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
+  }
+  body {
+    overflow-x: hidden;
+  }
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  pre,
+  div.sourceCode {
+    overflow-x: auto;
   }
 }
