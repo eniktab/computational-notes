@@ -1,6 +1,7 @@
 ---
 title: "From Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity"
 date: "2026-05-25"
+categories: [genome assembly, GPU, graph neural networks, miniasm, transitive reduction]
 toc: true
 ---
 

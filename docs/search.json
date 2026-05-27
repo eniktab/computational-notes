@@ -4,7 +4,7 @@
     "href": "blog.html",
     "title": "Posts",
     "section": "",
-    "text": "Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both\n\n\n\n\n\n2026-05-27\n\n\nEli Niktab\n\n27 min\n\n\n\n\n\n\nFrom Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity\n\n\n\n\n\n2026-05-25\n\n\nEli Niktab\n\n13 min\n\n\n\n\nNo matching items"
+    "text": "Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both\n\n\n\ngenome assembly\n\ngraph neural networks\n\ndiploid\n\nhifiasm\n\nGINE\n\nfocal loss\n\n\n\n\n\n\n2026-05-27\n\n\nEli Niktab\n\n27 min\n\n\n\n\n\n\nFrom Assembly Heuristics to Blazing-Fast Matrix Operations: Achieving 100% Genome Assembly Parity\n\n\n\ngenome assembly\n\nGPU\n\ngraph neural networks\n\nminiasm\n\ntransitive reduction\n\n\n\n\n\n\n2026-05-25\n\n\nEli Niktab\n\n13 min\n\n\n\n\nNo matching items"
   },
   {
     "objectID": "posts/2026/from-heuristics-to-deep-learning/index.html",
@@ -95,7 +95,14 @@
     "href": "about.html",
     "title": "About",
     "section": "",
-    "text": "I have research experience in academic, policy making, clinical, and industrial settings, specializing in exploring multi-feature data, particularly omics, through in silico, in vitro, and in vivo methodologies.\nMy primary interests include Applied AI for Health, Stochastic Modeling of Heterogeneous Systems, Manifold Learning for Regulatory Networks, and Functional Genomics.\nGitHub | LinkedIn"
+    "text": "I have research experience in academic, policy making, clinical, and industrial settings, specializing in exploring multi-feature data — particularly omics — through in silico, in vitro, and in vivo methodologies.\nMy primary interests include Applied AI for Health, Stochastic Modeling of Heterogeneous Systems, Manifold Learning for Regulatory Networks, and Functional Genomics."
+  },
+  {
+    "objectID": "about.html#computational-notes",
+    "href": "about.html#computational-notes",
+    "title": "About",
+    "section": "Computational Notes",
+    "text": "Computational Notes\nThis site is where I work out technical material on long-read genome assembly, graph neural networks, deep learning on biological sequence data, and the bits of pure graph theory and tropical algebra that fall out of those problems.\nPosts are written as long-form lab-notebook entries: every result has a source-verified algorithmic background, a stated hypothesis, an experiment ledger, and a “what we learned” section. The intent is to share the reasoning trail, not just the headline number.\nCode, model weights, and reproducibility scripts referenced in posts live in their respective repositories under github.com/eniktab."
   },
   {
     "objectID": "posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/index.html",

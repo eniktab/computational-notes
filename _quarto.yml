@@ -7,6 +7,16 @@ project:
 website:
   title: "Computational Notes"
   site-url: "https://eniktab.github.io/computational-notes/"
+  description: "Computational biology notes by Eli Niktab — graph neural networks, genome assembly, deep learning on long-read data."
+  search:
+    location: navbar
+    type: overlay
+    copy-button: true
+  open-graph: true
+  twitter-card:
+    creator: "@eliniktab"
+    site: "@eliniktab"
+    card-style: summary_large_image
   navbar:
     background: light
     foreground: dark
@@ -23,9 +33,30 @@ website:
         href: https://github.com/eniktab/computational-notes
         aria-label: Star on GitHub
 
+bibliography: references.bib
+csl: https://www.zotero.org/styles/nature
+citation-location: document
+
 format:
   html:
-    theme: default
+    theme:
+      light: default
+      dark: darkly
     css: styles.css
     toc: false
     include-after-body: includes/post-feedback.html
+    code-copy: true
+    code-link: true
+    code-line-numbers: false
+    lightbox: auto
+    reading-time: true
+    date-modified: last-modified
+    link-external-icon: false
+    link-external-newwindow: true
+    smooth-scroll: true
+    anchor-sections: true
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    citations-hover: true
+    footnotes-hover: true
+    crossrefs-hover: true

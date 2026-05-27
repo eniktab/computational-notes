@@ -1,0 +1,314 @@
+% =========================
+% Computational Notes — central BibTeX file.
+% Cite from a post with `[@key]`, e.g. `[@myers2005]`.
+% =========================
+
+% ----- OLC and string-graph foundations -----
+
+@article{myers2005,
+  title   = {The fragment assembly string graph},
+  author  = {Myers, Eugene W.},
+  journal = {Bioinformatics},
+  volume  = {21},
+  number  = {Suppl 2},
+  pages   = {ii79--ii85},
+  year    = {2005},
+  doi     = {10.1093/bioinformatics/bti1114}
+}
+
+@article{li2016miniasm,
+  title   = {Minimap and miniasm: fast mapping and de novo assembly for noisy long sequences},
+  author  = {Li, Heng},
+  journal = {Bioinformatics},
+  volume  = {32},
+  number  = {14},
+  pages   = {2103--2110},
+  year    = {2016},
+  doi     = {10.1093/bioinformatics/btw152}
+}
+
+@article{cheng2021hifiasm,
+  title   = {Haplotype-resolved de novo assembly using phased assembly graphs with hifiasm},
+  author  = {Cheng, Haoyu and Concepcion, Gregory T. and Feng, Xiaowen and Zhang, Haowen and Li, Heng},
+  journal = {Nature Methods},
+  volume  = {18},
+  pages   = {170--175},
+  year    = {2021},
+  doi     = {10.1038/s41592-020-01056-5}
+}
+
+@article{chin2016falcon,
+  title   = {Phased diploid genome assembly with single-molecule real-time sequencing},
+  author  = {Chin, Chen-Shan and Peluso, Paul and Sedlazeck, Fritz J. and Nattestad, Maria and Concepcion, Gregory T. and Clum, Alicia and Dunn, Christopher and O'Malley, Ronan and Figueroa-Balderas, Rosa and Morales-Cruz, Abraham and Cramer, Grant R. and Delledonne, Massimo and Luo, Chongyuan and Ecker, Joseph R. and Cantu, Dario and Rank, David R. and Schatz, Michael C.},
+  journal = {Nature Methods},
+  volume  = {13},
+  pages   = {1050--1054},
+  year    = {2016},
+  doi     = {10.1038/nmeth.4035}
+}
+
+@article{koren2017canu,
+  title   = {Canu: scalable and accurate long-read assembly via adaptive k-mer weighting and repeat separation},
+  author  = {Koren, Sergey and Walenz, Brian P. and Berlin, Konstantin and Miller, Jason R. and Bergman, Nicholas H. and Phillippy, Adam M.},
+  journal = {Genome Research},
+  volume  = {27},
+  number  = {5},
+  pages   = {722--736},
+  year    = {2017},
+  doi     = {10.1101/gr.215087.116}
+}
+
+@article{koren2018trio,
+  title   = {De novo assembly of haplotype-resolved genomes with trio binning},
+  author  = {Koren, Sergey and Rhie, Arang and Walenz, Brian P. and Dilthey, Alexander T. and Bickhart, Derek M. and Kingan, Sarah B. and Hiendleder, Stefan and Williams, John L. and Smith, Timothy P. L. and Phillippy, Adam M.},
+  journal = {Nature Biotechnology},
+  volume  = {36},
+  pages   = {1174--1182},
+  year    = {2018},
+  doi     = {10.1038/nbt.4277}
+}
+
+@article{rautiainen2023verkko,
+  title   = {Telomere-to-telomere assembly of diploid chromosomes with Verkko},
+  author  = {Rautiainen, Mikko and Nurk, Sergey and Walenz, Brian P. and Logsdon, Glennis A. and Porubsky, David and Rhie, Arang and Eichler, Evan E. and Phillippy, Adam M. and Koren, Sergey},
+  journal = {Nature Biotechnology},
+  volume  = {41},
+  pages   = {1474--1482},
+  year    = {2023},
+  doi     = {10.1038/s41587-023-01662-6}
+}
+
+% ----- Alignment -----
+
+@article{li2018minimap2,
+  title   = {Minimap2: pairwise alignment for nucleotide sequences},
+  author  = {Li, Heng},
+  journal = {Bioinformatics},
+  volume  = {34},
+  number  = {18},
+  pages   = {3094--3100},
+  year    = {2018},
+  doi     = {10.1093/bioinformatics/bty191}
+}
+
+@article{marcosola2021wfa,
+  title   = {Fast gap-affine pairwise alignment using the wavefront algorithm},
+  author  = {Marco-Sola, Santiago and Moure, Juan Carlos and Moreto, Miquel and Espinosa, Antonio},
+  journal = {Bioinformatics},
+  volume  = {37},
+  number  = {4},
+  pages   = {456--463},
+  year    = {2021},
+  doi     = {10.1093/bioinformatics/btaa777}
+}
+
+@article{guarracino2021wfmash,
+  title   = {{wfmash}: whole-chromosome pairwise alignment using the hierarchical wavefront algorithm},
+  author  = {Guarracino, Andrea and Heumos, Simon and Nahnsen, Sven and Prins, Pjotr and Garrison, Erik},
+  journal = {Bioinformatics},
+  year    = {2021}
+}
+
+@article{marcais2018mummer4,
+  title   = {MUMmer4: A fast and versatile genome alignment system},
+  author  = {Mar{\c{c}}ais, Guillaume and Delcher, Arthur L. and Phillippy, Adam M. and Coston, Rachel and Salzberg, Steven L. and Zimin, Aleksey},
+  journal = {PLoS Computational Biology},
+  volume  = {14},
+  number  = {1},
+  pages   = {e1005944},
+  year    = {2018},
+  doi     = {10.1371/journal.pcbi.1005944}
+}
+
+% ----- Reference data -----
+
+@article{liao2023hprc,
+  title   = {A draft human pangenome reference},
+  author  = {Liao, Wen-Wei and Asri, Mobin and Ebler, Jana and Doerr, Daniel and Haukness, Marina and Hickey, Glenn and Lu, Shuangjia and Lucas, Julian K. and Monlong, Jean and Abel, Haley J. and Buonaiuto, Silvia and Chang, Xian H. and Cheng, Haoyu and Chu, Justin and Colonna, Vincenza and Eizenga, Jordan M. and Feng, Xiaowen and Fischer, Christian and Fulton, Robert S. and Garg, Shilpa and Groza, Cristian and Guarracino, Andrea and Harvey, William T. and Heumos, Simon and Howe, Kerstin and Jain, Miten and Lu, Tsung-Yu and Markello, Charles and Martin, Fergal J. and Mitchell, Matthew W. and Munson, Katherine M. and Mwaniki, Moses Njagi and Novak, Adam M. and Olsen, Hugh E. and Pesout, Trevor and Porubsky, David and Prins, Pjotr and Sibbesen, Jonas A. and Sir{\'e}n, Jouni and Tomlinson, Chad and Villani, Flavia and Vollger, Mitchell R. and Antonacci-Fulton, Lucinda L. and Baid, Gunjan and Baker, Carl A. and Belyaeva, Anastasiya and Billis, Konstantinos and Carroll, Andrew and Chang, Pi-Chuan and Cody, Sarah and Cook, Daniel E. and Cook-Deegan, Robert M. and Dailey, Omar E. and Dishuck, Philip C. and Drago, Allison M. and Ebert, Peter and Eckert, Sarah and Faraji, Mahmoud and Foroozani, Saghi and Garrison, Erik and Gibbs, Richard A. and Gu, Wen-Yu and Guarracino, Andrea and Harmsen, Hanneke and Henglin, Mir and Heydari, Kim and Hoekzema, Kendra and Howe, Kerstin and Hwang, Yongseung and Jarvis, Erich D. and Jung, Junghyun and Korbel, Jan O. and Lee, Heng and Magalh{\~a}es, Cidália and Markello, Charles and Mart{\'\i}nez-Manchego, Lin and Mountcastle, Jacquelyn and Olson, Nathan D. and Pang, Allison W. C. and Park, Carlos and Patten, Mathieu and Patwardhan, Manish and Phillippy, Adam M. and Pollex, Tim and Potapova, Tanya and Prabhakar, Shyam and Prudent, Ximena and Quinn, Hanya R. and Robison, Daria and Salama, Sofie R. and Salzberg, Steven L. and Sayed, Kishwar and Schloss, Jeffery A. and Schweiger, Michal R. and Sebra, Robert and Sedlazeck, Fritz J. and Skinner, Marina E. and Smith, Cordell M. and Soto, Daniela C. and Stahl, Mara and Su, Eliza and Sundermann, Linnea K. and Tomlinson, Chad and Wagner, Justin and Wang, Brian P. and Wittler, Roland and Wood, Jonathan M. D. and Yan, Brian Y. and Hicks, Tobias and Ho, Daniel and Hourlier, Thibaut and Pertea, Mihaela and Rakocevic, Goran and Ruffier, Magali and Shumate, Alaina and Stanke, Mario and Stefenon, Tagagnan and Sumera, Wojtek and Yates, Andrew and Bourque, Guillaume and Beck, Christine and Chaisson, Mark J. P. and Eichler, Evan E. and Hall, Ira M. and Kwok, Pui-Yan and Lansdorp, Peter M. and Li, Heng and Marschall, Tobias and Miga, Karen H. and Pevzner, Pavel A. and Schatz, Michael C. and Timp, Winston and Wenger, Aaron M. and Wittenberg, Tobias and Zook, Justin and Phillippy, Adam M. and Paten, Benedict and Howe, Kerstin and Wang, Ting},
+  journal = {Nature},
+  volume  = {617},
+  pages   = {312--324},
+  year    = {2023},
+  doi     = {10.1038/s41586-023-05896-x}
+}
+
+@article{nurk2022t2t,
+  title   = {The complete sequence of a human genome},
+  author  = {Nurk, Sergey and Koren, Sergey and Rhie, Arang and Rautiainen, Mikko and Bzikadze, Andrey V. and Mikheenko, Alla and Vollger, Mitchell R. and Altemose, Nicolas and Uralsky, Lev and Gershman, Ariel and Aganezov, Sergey and Hoyt, Savannah J. and Diekhans, Mark and Logsdon, Glennis A. and Alonge, Michael and Antonarakis, Stylianos E. and Borchers, Matthew and Bouffard, Gerard G. and Brooks, Shelise Y. and Caldas, Gina V. and Chen, Nae-Chyun and Cheng, Haoyu and Chin, Chen-Shan and Chow, William and de Lima, Leonardo G. and Dishuck, Philip C. and Durbin, Richard and Dvorkina, Tatiana and Fiddes, Ian T. and Formenti, Giulio and Fulton, Robert S. and Fungtammasan, Arkarachai and Garrison, Erik and Grady, Patrick G. S. and Graves-Lindsay, Tina A. and Hall, Ira M. and Hansen, Nancy F. and Hartley, Gabrielle A. and Haukness, Marina and Howe, Kerstin and Hunkapiller, Michael W. and Jain, Chirag and Jain, Miten and Jarvis, Erich D. and Kerpedjiev, Peter and Kirsche, Melanie and Kolmogorov, Mikhail and Korlach, Jonas and Kremitzki, Milinn and Li, Heng and Maduro, Valerie V. and Marschall, Tobias and McCartney, Ann M. and McDaniel, Jennifer and Miller, Danny E. and Mullikin, James C. and Myers, Eugene W. and Olson, Nathan D. and Paten, Benedict and Peluso, Paul and Pevzner, Pavel A. and Porubsky, David and Potapova, Tamara and Rogaev, Evgeny I. and Rosenfeld, Jeffrey A. and Salzberg, Steven L. and Schneider, Valerie A. and Sedlazeck, Fritz J. and Shafin, Kishwar and Shew, Colin J. and Shumate, Alaina and Sims, Ying and Smit, Arian F. A. and Soto, Daniela C. and Sovi{\'c}, Ivan and Storer, Jessica M. and Streets, Aaron and Sullivan, Beth A. and Thibaud-Nissen, Fran{\c{c}}oise and Torrance, James and Wagner, Justin and Walenz, Brian P. and Wenger, Aaron and Wood, Jonathan M. D. and Xiao, Chunlin and Yan, Stephanie M. and Young, Alice C. and Zarate, Samantha and Surti, Urvashi and McCoy, Rajiv C. and Dennis, Megan Y. and Alexandrov, Ivan A. and Gerton, Jennifer L. and O'Neill, Rachel J. and Timp, Winston and Zook, Justin M. and Schatz, Michael C. and Eichler, Evan E. and Miga, Karen H. and Phillippy, Adam M.},
+  journal = {Science},
+  volume  = {376},
+  number  = {6588},
+  pages   = {44--53},
+  year    = {2022},
+  doi     = {10.1126/science.abj6987}
+}
+
+% ----- Graph neural networks -----
+
+@inproceedings{gilmer2017mpnn,
+  title     = {Neural message passing for quantum chemistry},
+  author    = {Gilmer, Justin and Schoenholz, Samuel S. and Riley, Patrick F. and Vinyals, Oriol and Dahl, George E.},
+  booktitle = {International Conference on Machine Learning},
+  year      = {2017}
+}
+
+@inproceedings{kipf2017gcn,
+  title     = {Semi-supervised classification with graph convolutional networks},
+  author    = {Kipf, Thomas N. and Welling, Max},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2017}
+}
+
+@inproceedings{hamilton2017graphsage,
+  title     = {Inductive representation learning on large graphs},
+  author    = {Hamilton, William L. and Ying, Rex and Leskovec, Jure},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2017}
+}
+
+@inproceedings{velickovic2018gat,
+  title     = {Graph attention networks},
+  author    = {Veli{\v{c}}kovi{\'c}, Petar and Cucurull, Guillem and Casanova, Arantxa and Romero, Adriana and Li{\`o}, Pietro and Bengio, Yoshua},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2018}
+}
+
+@inproceedings{brody2022gatv2,
+  title     = {How attentive are graph attention networks?},
+  author    = {Brody, Shaked and Alon, Uri and Yahav, Eran},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2022}
+}
+
+@inproceedings{xu2019gin,
+  title     = {How powerful are graph neural networks?},
+  author    = {Xu, Keyulu and Hu, Weihua and Leskovec, Jure and Jegelka, Stefanie},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2019}
+}
+
+@inproceedings{hu2020gine,
+  title     = {Strategies for pre-training graph neural networks},
+  author    = {Hu, Weihua and Liu, Bowen and Gomes, Joseph and Zitnik, Marinka and Liang, Percy and Pande, Vijay and Leskovec, Jure},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2020}
+}
+
+@inproceedings{corso2020pna,
+  title     = {Principal Neighbourhood Aggregation for graph nets},
+  author    = {Corso, Gabriele and Cavalleri, Luca and Beaini, Dominique and Li{\`o}, Pietro and Veli{\v{c}}kovi{\'c}, Petar},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2020}
+}
+
+@inproceedings{dwivedi2021graphtransformer,
+  title     = {A generalization of transformer networks to graphs},
+  author    = {Dwivedi, Vijay Prakash and Bresson, Xavier},
+  booktitle = {AAAI Workshop on Deep Learning on Graphs},
+  year      = {2021}
+}
+
+@inproceedings{cai2021graphnorm,
+  title     = {{GraphNorm}: A principled approach to accelerating graph neural network training},
+  author    = {Cai, Tianle and Luo, Shengjie and Xu, Keyulu and He, Di and Liu, Tie-Yan and Wang, Liwei},
+  booktitle = {International Conference on Machine Learning},
+  year      = {2021}
+}
+
+% ----- Graph batching -----
+
+@inproceedings{chiang2019clustergcn,
+  title     = {Cluster-{GCN}: An efficient algorithm for training deep and large graph convolutional networks},
+  author    = {Chiang, Wei-Lin and Liu, Xuanqing and Si, Si and Li, Yang and Bengio, Samy and Hsieh, Cho-Jui},
+  booktitle = {Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery \& Data Mining},
+  year      = {2019}
+}
+
+@inproceedings{zeng2020graphsaint,
+  title     = {{GraphSAINT}: Graph sampling based inductive learning method},
+  author    = {Zeng, Hanqing and Zhou, Hongkuan and Srivastava, Ajitesh and Kannan, Rajgopal and Prasanna, Viktor},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2020}
+}
+
+% ----- Loss / regularisation -----
+
+@inproceedings{lin2017focal,
+  title     = {Focal loss for dense object detection},
+  author    = {Lin, Tsung-Yi and Goyal, Priya and Girshick, Ross and He, Kaiming and Doll{\'a}r, Piotr},
+  booktitle = {Proceedings of the IEEE International Conference on Computer Vision},
+  year      = {2017}
+}
+
+@inproceedings{cui2019classbalanced,
+  title     = {Class-balanced loss based on effective number of samples},
+  author    = {Cui, Yin and Jia, Menglin and Lin, Tsung-Yi and Song, Yang and Belongie, Serge},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  year      = {2019}
+}
+
+@inproceedings{muller2019labelsmoothing,
+  title     = {When does label smoothing help?},
+  author    = {M{\"u}ller, Rafael and Kornblith, Simon and Hinton, Geoffrey},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2019}
+}
+
+@inproceedings{xiong2020layernorm,
+  title     = {On layer normalization in the transformer architecture},
+  author    = {Xiong, Ruibin and Yang, Yunchang and He, Di and Zheng, Kai and Zheng, Shuxin and Xing, Chen and Zhang, Huishuai and Lan, Yanyan and Wang, Liwei and Liu, Tie-Yan},
+  booktitle = {International Conference on Machine Learning},
+  year      = {2020}
+}
+
+% ----- Learning-based assembly -----
+
+@misc{vrcek2022gnnome,
+  title  = {Learning to untangle genome assembly with graph convolutional networks},
+  author = {Vr{\v{c}}ek, Lovro and Burdyshaw, Brendon and Mihaljevi{\'c}, Marko and Bresson, Xavier and Sto{\v{s}}i{\'c}, Borislav D. and {\v{S}}iki{\'c}, Mile},
+  year   = {2022}
+}
+
+% ----- Long-read error correction -----
+
+@article{stanojevic2024herro,
+  title   = {{HERRO}: End-to-end accurate read correction with deep learning},
+  author  = {Stanojevi{\'c}, Dominik and others},
+  journal = {bioRxiv},
+  year    = {2024},
+  note    = {preprint}
+}
+
+@article{baid2023deepconsensus,
+  title   = {{DeepConsensus} improves the accuracy of sequences with a gap-aware sequence transformer},
+  author  = {Baid, Gunjan and Cook, Daniel E. and Shafin, Kishwar and Yun, Taedong and Llinares-L{\'o}pez, Felipe and Berthet, Quentin and Belyaeva, Anastasiya and Topfer, Armin and Wenger, Aaron M. and Rowell, William J. and Yang, Howard and Kolesnikov, Alexey and Ammar, Waleed and Vert, Jean-Philippe and Vaswani, Ashish and McLean, Cory Y. and Nurk, Sergey and Koren, Sergey and Phillippy, Adam M. and Aganezov, Sergey and Schneider, Valerie A. and Carroll, Andrew},
+  journal = {Nature Biotechnology},
+  volume  = {41},
+  pages   = {232--238},
+  year    = {2023},
+  doi     = {10.1038/s41587-022-01435-7}
+}
+
+% ----- Simulation -----
+
+@article{ono2021pbsim3,
+  title   = {{PBSIM3}: a simulator for all types of PacBio and ONT long reads},
+  author  = {Ono, Yukiteru and Asai, Kiyoshi and Hamada, Michiaki},
+  journal = {NAR Genomics and Bioinformatics},
+  volume  = {4},
+  number  = {4},
+  pages   = {lqac092},
+  year    = {2022},
+  doi     = {10.1093/nargab/lqac092}
+}
+
+% ----- Tropical semiring -----
+
+@book{maclagan2015tropical,
+  title     = {Introduction to Tropical Geometry},
+  author    = {Maclagan, Diane and Sturmfels, Bernd},
+  publisher = {American Mathematical Society},
+  series    = {Graduate Studies in Mathematics},
+  volume    = {161},
+  year      = {2015}
+}

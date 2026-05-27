@@ -8,7 +8,7 @@
 <title>Computational Notes</title>
 <link>https://eniktab.github.io/computational-notes/blog.html</link>
 <atom:link href="https://eniktab.github.io/computational-notes/blog.xml" rel="self" type="application/rss+xml"/>
-<description></description>
+<description>Computational biology notes by Eli Niktab — graph neural networks, genome assembly, deep learning on long-read data.</description>
 <generator>quarto-1.9.37</generator>
 <lastBuildDate>Tue, 26 May 2026 14:00:00 GMT</lastBuildDate>
 <item>
@@ -16,6 +16,7 @@
   <dc:creator>Eli Niktab</dc:creator>
   <link>https://eniktab.github.io/computational-notes/posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/</link>
   <description><![CDATA[ 
+
 
 
 
@@ -688,6 +689,12 @@ font-style: inherit;">;</span></span></code></pre></div></div></li>
 </section>
 
  ]]></description>
+  <category>genome assembly</category>
+  <category>graph neural networks</category>
+  <category>diploid</category>
+  <category>hifiasm</category>
+  <category>GINE</category>
+  <category>focal loss</category>
   <guid>https://eniktab.github.io/computational-notes/posts/2026/miniasm-vs-hifiasm-and-gineconv-pruning/</guid>
   <pubDate>Tue, 26 May 2026 14:00:00 GMT</pubDate>
 </item>
@@ -696,6 +703,7 @@ font-style: inherit;">;</span></span></code></pre></div></div></li>
   <dc:creator>Eli Niktab</dc:creator>
   <link>https://eniktab.github.io/computational-notes/posts/2026/from-heuristics-to-deep-learning/</link>
   <description><![CDATA[ 
+
 
 
 
@@ -950,6 +958,11 @@ V' = V ^ 1              →    U' = U ^ 1</code></pre>
 </section>
 
  ]]></description>
+  <category>genome assembly</category>
+  <category>GPU</category>
+  <category>graph neural networks</category>
+  <category>miniasm</category>
+  <category>transitive reduction</category>
   <guid>https://eniktab.github.io/computational-notes/posts/2026/from-heuristics-to-deep-learning/</guid>
   <pubDate>Sun, 24 May 2026 14:00:00 GMT</pubDate>
 </item>

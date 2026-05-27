@@ -7,7 +7,8 @@ listing:
   sort: "date desc"
   sort-ui: false
   filter-ui: false
-  fields: [date, title, author, reading-time]
+  categories: true
+  fields: [date, title, author, reading-time, categories]
   date-format: "YYYY-MM-DD"
   page-size: 50
   feed: true

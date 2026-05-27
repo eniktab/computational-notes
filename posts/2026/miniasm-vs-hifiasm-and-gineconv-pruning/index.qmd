@@ -1,6 +1,7 @@
 ---
 title: "Pruning the Pruners: Miniasm vs Hifiasm, the Graph Theory Behind Them, and How an Edge-Conditioned GIN Learned Both"
 date: "2026-05-27"
+categories: [genome assembly, graph neural networks, diploid, hifiasm, GINE, focal loss]
 toc: true
 ---
 
